@@ -11,6 +11,8 @@
 7. [Installation & Betrieb](#7-installation--betrieb)
 8. [Sicherheitsbetrachtungen](#8-sicherheitsbetrachtungen)
 9. [Standards & Referenzen](#9-standards--referenzen)
+10. [Version 3.0: Live-Inspection Mode](#10-version-30-live-inspection-mode)
+11. [Version 4.0: Robustheit & Usability](#11-version-40-robustheit--usability)
 
 ---
 
@@ -72,6 +74,7 @@ Dieser Proof of Concept demonstriert eine vollständige Implementierung des SD-J
 ```
 POC/
 ├── sd_jwt_utils.py      # Kryptografische Funktionen
+├── log_manager.py       # Version 3.0: Live-Inspection Logging
 ├── issuer.py            # Issuer Server
 ├── wallet.py            # Wallet Client  
 ├── verifier.py          # Verifier Server
@@ -693,6 +696,207 @@ certbot certonly --dns-cloudflare \
 | Version | Datum | Änderungen |
 |---------|-------|------------|
 | 1.0 | 2025-02-06 | Initiale Implementierung |
+| 3.0 | 2025-02-06 | Live-Inspection Mode (Crypto-Insight, Traffic-Monitor, Verification-Logic) || 4.0 | 2025-02-06 | Trust Registry, Clock Skew Toleranz, Decoy Hashes, Short-Codes, Consent Screen |
+---
+
+## 10. Version 3.0: Live-Inspection Mode
+
+### 10.1 Übersicht
+
+Version 3.0 führt den **Live-Inspection Mode** ein, der alle kryptografischen Operationen, Netzwerkkommunikation und Verifikationsschritte in Echtzeit visualisiert. Dies dient Bildungszwecken und ermöglicht ein tiefes Verständnis der SD-JWT-Prozesse.
+
+### 10.2 Komponenten
+
+#### 10.2.1 Crypto-Insight (Issuer)
+
+Visualisiert die Kryptografie bei der Credential-Ausstellung:
+
+| Funktion | Anzeige |
+|----------|---------|
+| `show_raw_data()` | Rohdaten vor der Verarbeitung |
+| `show_salting()` | Salt-Werte für Disclosures |
+| `show_hashing()` | SHA-256 Hash-Berechnung |
+| `show_token_structure()` | JWT Header, Payload, Signature |
+| `show_signature()` | EdDSA-Signaturprozess |
+| `show_status_list_update()` | Bitstring Status List Änderungen |
+
+#### 10.2.2 Traffic-Monitor (Wallet)
+
+Zeigt die Netzwerkkommunikation:
+
+| Funktion | Anzeige |
+|----------|---------|
+| `show_outgoing_request()` | HTTP-Anfragen mit Header/Body |
+| `show_incoming_response()` | Server-Antworten mit Status |
+| `show_credential_storage()` | Lokale Speicherung |
+| `show_disclosure_selection()` | Auswahl der offenzulegenden Claims |
+| `show_kb_jwt_creation()` | Key Binding JWT Erstellung |
+| `show_presentation_packet()` | Finales Präsentationspaket |
+
+#### 10.2.3 Verification-Logic (Verifier)
+
+Zeigt die Verifikationsschritte als Checkliste:
+
+| Funktion | Anzeige |
+|----------|---------|
+| `show_incoming_presentation()` | Empfangene Präsentation |
+| `add_check()` | Prüfschritt zur Checkliste hinzufügen |
+| `show_hash_verification()` | Disclosure-Hash Verifikation |
+| `show_status_check()` | Revocation Status Prüfung |
+| `show_checklist()` | Finale Checkliste (✓/✗) |
+| `show_extracted_claims()` | Erfolgreich extrahierte Claims |
+
+### 10.3 Aktivierung
+
+Der Live-Inspection Mode wird in der `CONFIG` jeder Komponente aktiviert:
+
+```python
+CONFIG = {
+    # ...
+    "inspection_mode": True  # Auf False setzen zum Deaktivieren
+}
+```
+
+### 10.4 Beispielausgabe
+
+**Issuer (Crypto-Insight):**
+```
+════════════════════════════════════════════════════════════
+CRYPTO-INSIGHT MODE ACTIVE
+════════════════════════════════════════════════════════════
+
+┌─ RAW DATA ─────────────────────────────────────────────────┐
+│ Claim: given_name                                          │
+│ Value: Max                                                 │
+└────────────────────────────────────────────────────────────┘
+
+┌─ SALTING ──────────────────────────────────────────────────┐
+│ Salt: Kj7xP2mN9qW4rT6...                                   │
+│ Claim: given_name                                          │
+│ Value: Max                                                 │
+│ Disclosure: ["Kj7xP2mN9qW4rT6...", "given_name", "Max"]    │
+│ Base64: W0tqN3hQMm1OOXFXNHJUNi4uLg==                       │
+└────────────────────────────────────────────────────────────┘
+```
+
+**Verifier (Verification-Logic):**
+```
+════════════════════════════════════════════════════════════
+VERIFICATION CHECKLIST
+════════════════════════════════════════════════════════════
+ ✓ Issuer vertrauenswürdig          https://localhost:5001
+ ✓ Issuer Signatur (EdDSA)          Ed25519 Kurve
+ ✓ Disclosure-Hashes                3 geprüft
+ ✓ Nonce gültig                     aB3dE5fG7hI9jK...
+ ✓ KB-JWT Signatur (Holder)         Proof of Possession
+ ✓ SD-Hash Bindung                  KB-JWT bindet an SD-JWT
+ ✓ Revocation Status                Nicht widerrufen
+════════════════════════════════════════════════════════════
+```
+
+---
+
+## 11. Version 4.0: Robustheit & Usability
+
+### 11.1 Übersicht
+
+Version 4.0 fügt Robustheitsfunktionen und verbesserte Usability hinzu:
+
+| Feature | Beschreibung |
+|---------|--------------|
+| Trust Registry | Verifier lädt vertrauenswürdige Issuer aus JSON-Datei |
+| Clock Skew Toleranz | 60 Sekunden Zeitpuffer bei nbf/exp Validierung |
+| Decoy Hashes | Fake-Hashes gegen Credential-Profiling |
+| Short-Codes | 4-stellige Codes statt langer URLs |
+| Consent Screen | Explizite Zustimmung mit Datenübersicht |
+
+### 11.2 Trust Registry
+
+Die Datei `trusted_registry.json` simuliert eine PKI/DID-Infrastruktur:
+
+```json
+{
+  "issuers": {
+    "http://localhost:5001": {
+      "name": "Bürgerbüro Musterstadt",
+      "type": "government",
+      "public_key": null,
+      "fetch_from_metadata": true
+    }
+  }
+}
+```
+
+- `public_key`: Vordefinierter Ed25519 Key (Base64)
+- `fetch_from_metadata`: Key von Issuer holen wenn `null`
+
+### 11.3 Clock Skew Toleranz
+
+Verteilte Systeme haben oft unsynchronisierte Uhren. Version 4.0 toleriert ±60 Sekunden:
+
+```python
+CLOCK_SKEW_LEEWAY = 60  # Sekunden
+
+def validate_time_claims(payload, leeway=CLOCK_SKEW_LEEWAY):
+    # nbf: Token gültig wenn now >= nbf - leeway
+    # exp: Token gültig wenn now <= exp + leeway
+```
+
+### 11.4 Decoy Hashes (Anti-Profiling)
+
+Decoy-Hashes verschleiern die echte Anzahl der Claims:
+
+```
+_sd Array ohne Decoys: [hash1, hash2, hash3]        → 3 Claims erkennbar
+_sd Array mit Decoys:  [hash1, decoy, hash2, hash3, decoy] → Anzahl verschleiert
+```
+
+- Aktivierung: `"add_decoys": true` in Issuer CONFIG
+- Decoys haben keine zugehörige Disclosure
+- Werden bei Validierung ignoriert
+
+### 11.5 Short-Codes
+
+4-stellige Codes für einfache Eingabe im Terminal statt langer URLs:
+
+**Issuer:**
+```
+Pre-Authorized Code: aB3dE5fG7hI9...
+Short-Code: 4821  ← Einfache Eingabe
+```
+
+**Wallet:**
+```
+Pre-Authorized Code oder Short-Code (4 Ziffern): 4821
+→ Short-Code erkannt, löse auf...
+✓ Short-Code aufgelöst
+```
+
+**API-Endpunkte:**
+- `GET /shortcode/<code>` (Issuer): Gibt Offer-URI zurück
+- `GET /shortcode/<code>` (Verifier): Gibt Nonce/State zurück
+
+### 11.6 Consent Screen
+
+Vor dem Senden wird eine klare Übersicht gezeigt:
+
+```
+┌─ ⚠️ Consent / Zustimmung ──────────────────────────────────┐
+│ ACHTUNG: Datenfreigabe                                     │
+│                                                             │
+│ Verifier: http://localhost:5002                            │
+│                                                             │
+│ ✓ WIRD GETEILT:                                            │
+│    • given_name: Max                                       │
+│    • is_over_18: true                                      │
+│                                                             │
+│ ✗ WIRD NICHT GETEILT:                                      │
+│    • family_name                                           │
+│    • birthdate                                             │
+│    • address                                               │
+└────────────────────────────────────────────────────────────┘
+Daten wirklich an diesen Verifier senden? [y/N]
+```
 
 ---
 

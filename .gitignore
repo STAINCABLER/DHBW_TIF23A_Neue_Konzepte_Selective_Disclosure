@@ -1,1 +1,100 @@
-ARCHITECTURE.md
+# ==============================================================================
+# SD-JWT VC Proof of Concept - .gitignore
+# ==============================================================================
+
+# ==============================================================================
+# Python
+# ==============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# ==============================================================================
+# POC - Generierte Dateien (enthalten Secrets!)
+# ==============================================================================
+
+# Wallet-Speicher (enthält Private Keys!)
+POC/wallet_store.json
+wallet_store.json
+
+# Issuer-Schlüssel (enthält Private Keys!)
+POC/issuer_keys.json
+issuer_keys.json
+
+# ACME/Let's Encrypt (enthält API Tokens und Account Keys!)
+POC/certs/acme/
+certs/acme/
+acme_config.json
+POC/acme_config.json
+
+# Komponenten-Konfiguration (enthält Cloudflare Tokens!)
+POC/configs/
+configs/
+*_config.json
+
+# SSL-Zertifikate
+POC/certs/
+certs/
+*.pem
+*.crt
+*.key
+
+# ==============================================================================
+# IDE & Editor
+# ==============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# ==============================================================================
+# OS-spezifisch
+# ==============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ==============================================================================
+# Umgebungsvariablen
+# ==============================================================================
+.env
+.env.local
+.env.*.local
+
+# ==============================================================================
+# Logs & Temp
+# ==============================================================================
+*.log
+*.tmp
+*.temp

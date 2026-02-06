@@ -1,0 +1,23 @@
+{
+    "description": "Trust Registry - Vertrauenswürdige Issuer und ihre Public Keys",
+    "version": "4.0",
+    "issuers": {
+        "https://issuer.example.com": {
+            "name": "Bundesdruckerei Deutschland",
+            "type": "government",
+            "public_key": null,
+            "fetch_from_metadata": true
+        },
+        "http://localhost:5001": {
+            "name": "Bürgerbüro Musterstadt (Local)",
+            "type": "government",
+            "public_key": null,
+            "fetch_from_metadata": true
+        }
+    },
+    "notes": [
+        "public_key: Base64-codierter Ed25519 Public Key (optional)",
+        "fetch_from_metadata: Wenn true, wird der Key von /.well-known/openid-credential-issuer abgerufen",
+        "Diese Datei simuliert eine echte PKI/DID-Infrastruktur"
+    ]
+}

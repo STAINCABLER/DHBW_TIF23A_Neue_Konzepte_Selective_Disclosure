@@ -1,0 +1,26 @@
+# SD-JWT VC Proof of Concept - Dependencies
+# Python 3.10+
+
+# Web Framework
+flask>=2.3.0
+
+# HTTP Client
+requests>=2.31.0
+
+# Cryptography (Ed25519)
+cryptography>=41.0.0
+
+# Terminal UI
+rich>=13.0.0
+
+# QR-Code Generation
+segno>=1.6.0
+
+# ==============================================================================
+# ACME / Let's Encrypt (Optional - für TLS-Zertifikate)
+# Plattformunabhängig: Windows & Linux
+# ==============================================================================
+acme>=2.0.0
+josepy>=1.13.0
+cloudflare>=2.11.0
+# certbot-dns-cloudflare>=2.0.0
