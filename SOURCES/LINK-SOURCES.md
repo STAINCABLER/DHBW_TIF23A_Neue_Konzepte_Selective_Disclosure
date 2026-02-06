@@ -1,0 +1,16 @@
+https://github.com/walt-id/waltid-identity
+https://docs.walt.id/concepts
+https://docs.walt.id/concepts/decentralized-identity
+https://docs.walt.id/concepts/id-ecosystems
+https://docs.walt.id/concepts/decentralised-identifiers
+https://youtu.be/XajpI6yWxwA
+https://docs.walt.id/concepts/digital-credentials
+https://docs.walt.id/concepts/digital-credentials/verifiable-credentials-w3c
+https://docs.walt.id/concepts/digital-credentials/sd-jwt-vc
+https://docs.walt.id/concepts/digital-credentials/mdoc-mdl-iso
+https://docs.walt.id/concepts/selective-disclosure
+https://docs.walt.id/concepts/credential-lifecycle/credential-status-and-revocation
+https://docs.walt.id/concepts/data-exchange-protocols
+https://docs.walt.id/concepts/data-exchange-protocols/openid4vci
+https://docs.walt.id/concepts/data-exchange-protocols/openid4vp
+https://docs.walt.id/concepts/data-exchange-protocols/dc-api
