@@ -1,0 +1,34 @@
+{
+  "1234-CODE": {
+    "given_name": "Max",
+    "family_name": "Mustermann",
+    "birthdate": "1990-01-15",
+    "address": "Musterstraße 42, 12345 Berlin",
+    "nationality": "DE",
+    "document_number": "T220001234"
+  },
+  "5678-CODE": {
+    "given_name": "Erika",
+    "family_name": "Musterfrau",
+    "birthdate": "1985-07-22",
+    "address": "Beispielweg 7, 80331 München",
+    "nationality": "DE",
+    "document_number": "T220005678"
+  },
+  "9999-CODE": {
+    "given_name": "Hans",
+    "family_name": "Schmidt",
+    "birthdate": "1978-11-03",
+    "address": "Hauptstraße 1, 50667 Köln",
+    "nationality": "DE",
+    "document_number": "T220009999"
+  },
+  "ABCD-CODE": {
+    "given_name": "Anna",
+    "family_name": "Müller",
+    "birthdate": "1995-12-24",
+    "address": "Lindenallee 15, 70173 Stuttgart",
+    "nationality": "DE",
+    "document_number": "T220000ABC"
+  }
+}
