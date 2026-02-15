@@ -13,6 +13,8 @@
 9. [Standards & Referenzen](#9-standards--referenzen)
 10. [Version 3.0: Live-Inspection Mode](#10-version-30-live-inspection-mode)
 11. [Version 4.0: Robustheit & Usability](#11-version-40-robustheit--usability)
+12. [Version 5.0: Deep-Trace File-Logging](#12-version-50-deep-trace-file-logging)
+13. [Version 6.0: CLI Certificate Renewal](#13-version-60-cli-certificate-renewal)
 
 ---
 
@@ -900,4 +902,290 @@ Daten wirklich an diesen Verifier senden? [y/N]
 
 ---
 
+## 12. Version 5.0: Deep-Trace File-Logging
+
+### 12.1 Übersicht
+
+Version 5.0 führt dateibasiertes Logging ein, um kryptografische Operationen nachvollziehbar und für Präsentationen/Debugging persistierbar zu machen.
+
+| Feature | Beschreibung |
+|---------|---------------|
+| Persistente Logs | Alle Operationen werden in Dateien geschrieben |
+| Komponenten-Trennung | Separate Logdateien pro Komponente |
+| Debug-Tiefe | Vollständige kryptografische Details |
+| Session-Reset | Logdatei wird bei jedem Start überschrieben |
+
+**SICHERHEITSHINWEIS:** Da dies ein PoC ist, werden sensible Daten (Salts, Tokens) absichtlich geloggt. **IN PRODUKTION NIEMALS TUN!**
+
+### 12.2 Log-Dateien
+
+```
+POC/logs/
+├── issuer_debug.log    # Issuer-Operationen
+├── wallet_debug.log    # Wallet-Operationen
+└── verifier_debug.log  # Verifier-Operationen
+```
+
+### 12.3 Logger-Modul (logger_config.py)
+
+Das Modul stellt spezialisierte Logger-Klassen bereit:
+
+```python
+from logger_config import get_issuer_logger, get_wallet_logger, get_verifier_logger
+
+# Issuer
+logger = get_issuer_logger()
+logger.log_disclosure_creation("given_name", "Max", salt, disclosure_array)
+logger.log_hashing("given_name", disclosure_b64, hash_digest)
+logger.log_credential_issued("1234-CODE", status_index=0)
+
+# Wallet
+logger = get_wallet_logger()
+logger.log_outgoing_request("POST", url, body)
+logger.log_disclosure_selection(all_claims, selected_claims)
+logger.log_kb_jwt_creation(nonce, audience, sd_hash)
+
+# Verifier
+logger = get_verifier_logger()
+logger.log_presentation_received(sd_jwt_preview, disclosures_count, has_kb_jwt)
+logger.log_hash_verification(claim_name, disclosure, computed_hash, found_in_sd)
+logger.log_verification_result(checks, all_passed)
+```
+
+### 12.4 Log-Format
+
+```
+[2025-11-03 14:32:15] [INFO] [sdjwt.issuer] :: SCHRITT 1 - RAW DATA für Bürger [1234-CODE]
+[2025-11-03 14:32:15] [DEBUG] [sdjwt.issuer] :: Geladene Daten:
+{
+  "given_name": "Max",
+  "family_name": "Mustermann",
+  "birthdate": "1990-01-15"
+}
+[2025-11-03 14:32:15] [INFO] [sdjwt.issuer] :: SCHRITT 2 - DISCLOSURE für 'given_name'
+[2025-11-03 14:32:15] [DEBUG] [sdjwt.issuer] ::   Claim-Name: given_name
+[2025-11-03 14:32:15] [DEBUG] [sdjwt.issuer] ::   Claim-Wert: Max
+[2025-11-03 14:32:15] [DEBUG] [sdjwt.issuer] ::   Salt: trMX9skzGJq4Lp...
+```
+
+### 12.5 IssuerLogger-Methoden
+
+| Methode | Beschreibung |
+|---------|---------------|
+| `log_raw_data(citizen_code, data)` | Bürgerdaten aus DB |
+| `log_salt_generation(claim_name, salt)` | Salt-Erzeugung |
+| `log_disclosure_creation(...)` | Disclosure-Array |
+| `log_hashing(claim_name, disclosure_b64, hash)` | SHA-256 Prozess |
+| `log_token_structure(payload, count)` | SD-JWT Payload |
+| `log_decoy_hashes(count, hashes)` | Decoy-Hashes (v4.0) |
+| `log_signature(algorithm, key_id)` | EdDSA Signatur |
+| `log_status_list_update(idx, old, new)` | Revocation |
+| `log_credential_issued(citizen_code, idx)` | Erfolgreiche Ausstellung |
+| `log_offer_created(code, short_code, uri)` | Credential Offer |
+
+### 12.6 WalletLogger-Methoden
+
+| Methode | Beschreibung |
+|---------|---------------|
+| `log_key_generation(public_key_b64)` | Neue Keys |
+| `log_key_loaded(public_key_b64)` | Keys geladen |
+| `log_outgoing_request(method, url, body)` | HTTP Request |
+| `log_incoming_response(status, body)` | HTTP Response |
+| `log_credential_received(issuer, preview, count)` | Credential empfangen |
+| `log_credential_stored(id, claims)` | Speicherung |
+| `log_disclosure_selection(all, selected)` | Privacy-Entscheidung |
+| `log_kb_jwt_creation(nonce, aud, hash)` | Key Binding JWT |
+| `log_presentation_sent(url, count)` | Präsentation gesendet |
+
+### 12.7 VerifierLogger-Methoden
+
+| Methode | Beschreibung |
+|---------|---------------|
+| `log_presentation_received(preview, count, has_kb)` | Empfangene Präsentation |
+| `log_signature_verification(issuer, passed, alg)` | Signaturprüfung |
+| `log_hash_verification(name, disc, hash, found)` | Hash-Abgleich |
+| `log_kb_jwt_verification(passed, nonce, aud)` | KB-JWT Prüfung |
+| `log_status_check(uri, idx, bit)` | Revocation-Status |
+| `log_verification_result(checks, passed)` | Finale Checkliste |
+| `log_extracted_claims(claims)` | Extrahierte Daten |
+| `log_nonce_generated(nonce, session_id)` | Challenge erstellt |
+| `log_nonce_consumed(nonce)` | Nonce verbraucht |
+
+### 12.8 Kombination mit Live-Inspection (v3.0)
+
+Beide Systeme arbeiten parallel:
+- **Live-Inspection (log_manager.py):** Terminal-Visualisierung in Echtzeit
+- **Deep-Trace (logger_config.py):** Persistente Datei für spätere Analyse
+
+```python
+# Issuer: Beide Systeme nutzen
+if CONFIG.get("inspection_mode", False):
+    crypto_insight.show_salting(claim_name, value, salt, array)  # Terminal
+    
+file_logger = get_issuer_logger()
+file_logger.log_disclosure_creation(claim_name, value, salt, array)  # Datei
+```
+
+---
+
+## 13. Version 6.0: CLI Certificate Renewal
+
+### 13.1 Übersicht
+
+Version 6.0 fügt CLI-Argumente für automatisierte TLS-Zertifikatserneuerung hinzu. Dies ermöglicht Cron-Jobs und CI/CD-Integration.
+
+| Feature | Beschreibung |
+|---------|---------------|
+| `--renew-certs` | CLI-Flag für Zertifikatserneuerung |
+| ACME Support | Let's Encrypt mit Cloudflare DNS-01 |
+| Self-Signed Fallback | Wenn ACME nicht konfiguriert |
+| Plattformunabhängig | Windows & Linux |
+
+### 13.2 Verwendung
+
+```bash
+# Issuer: Nur Zertifikate erneuern (ohne Server zu starten)
+python issuer.py --renew-certs
+
+# Verifier: Nur Zertifikate erneuern
+python verifier.py --renew-certs
+```
+
+### 13.3 Exit-Codes
+
+| Code | Bedeutung |
+|------|----------|
+| 0 | Zertifikate erfolgreich erneuert |
+| 1 | Fehler bei Erneuerung |
+
+### 13.4 Prozessablauf
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   --renew-certs Flow                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  1. Prüfe: ACME-Config vorhanden?                          │
+│     └─ certs/acme_config.json                               │
+│                                                             │
+│  2a. JA: ACME/Let's Encrypt                                 │
+│      ├─ Setup Cloudflare DNS                                │
+│      ├─ ACME Account registrieren                           │
+│      └─ Zertifikat anfordern (DNS-01 Challenge)             │
+│                                                             │
+│  2b. NEIN: Fallback Self-Signed                             │
+│      └─ generate_self_signed_cert()                         │
+│                                                             │
+│  3. Speichere Zertifikat:                                   │
+│     ├─ certs/issuer.crt / certs/verifier.crt               │
+│     └─ certs/issuer.key / certs/verifier.key               │
+│                                                             │
+│  4. Exit mit Code 0 (Erfolg) oder 1 (Fehler)               │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 13.5 ACME-Konfiguration
+
+Für Let's Encrypt mit Cloudflare DNS müssen folgende Werte in der Komponenten-Config gesetzt sein:
+
+```json
+{
+  "ssl": {
+    "mode": "acme",
+    "acme": {
+      "domain": "issuer.example.com",
+      "email": "admin@example.com",
+      "cloudflare_token": "<API-Token mit Zone:DNS:Edit>",
+      "use_staging": true
+    }
+  }
+}
+```
+
+**Staging vs. Production:**
+- `use_staging: true` → Let's Encrypt Staging (Rate-Limit-frei, nicht vertrauenswürdig)
+- `use_staging: false` → Let's Encrypt Production (Rate-Limited, Browser-vertrauenswürdig)
+
+### 13.6 Cron-Job Beispiel
+
+```bash
+# Täglich um 3:00 Uhr Zertifikate prüfen/erneuern
+0 3 * * * cd /path/to/POC && python issuer.py --renew-certs >> /var/log/cert-renewal.log 2>&1
+0 3 * * * cd /path/to/POC && python verifier.py --renew-certs >> /var/log/cert-renewal.log 2>&1
+```
+
+### 13.7 cert_manager.py - Hauptfunktionen
+
+```python
+# Selbstsigniertes Zertifikat erstellen
+from cert_manager import generate_self_signed_cert
+
+success = generate_self_signed_cert(
+    domain="localhost",
+    cert_path="certs/issuer.crt",
+    key_path="certs/issuer.key",
+    days_valid=365
+)
+
+# ACME/Let's Encrypt
+from cert_manager import AcmeCertManager
+
+manager = AcmeCertManager(use_staging=True)
+manager.setup_cloudflare(api_token)
+manager.register_account(email)
+manager.issue_certificate(domain, cert_path, key_path)
+```
+
+### 13.8 Argparse-Integration
+
+```python
+# issuer.py / verifier.py
+import argparse
+
+parser = argparse.ArgumentParser(description="SD-JWT Server")
+parser.add_argument(
+    '--renew-certs',
+    action='store_true',
+    help='TLS-Zertifikate erneuern und beenden'
+)
+args = parser.parse_args()
+
+if args.renew_certs:
+    load_config()
+    success = renew_certificates()
+    sys.exit(0 if success else 1)
+```
+
+### 13.9 Fehlerbehandlung
+
+Die `renew_certificates()` Funktion behandelt folgende Szenarien:
+
+| Szenario | Verhalten |
+|----------|----------|
+| ACME konfiguriert, erfolgreich | Zertifikat erneuert, Exit 0 |
+| ACME konfiguriert, fehlgeschlagen | Fallback auf Self-Signed |
+| ACME nicht konfiguriert | Self-Signed erstellt, Exit 0 |
+| cert_manager nicht importierbar | Fehler, Exit 1 |
+| cryptography nicht installiert | Fehler, Exit 1 |
+
+---
+
+## 14. Weiterführende Dokumentation
+
+Für eine vollständige technische Referenz aller Funktionen, Datenformate und API-Spezifikationen siehe:
+
+→ **[ARCHITEKTUR_TECHNISCH.md](ARCHITEKTUR_TECHNISCH.md)**
+
+Diese Datei enthält:
+- Alle Funktionssignaturen mit Parameterbeschreibungen
+- Vollständige JSON-Schemas für alle Dateiformate
+- Detaillierte API-Request/Response-Beispiele
+- Kryptografische Implementierungsdetails
+- Replikations-Anleitung für das gesamte System
+
+---
+
 *Dokumentation erstellt für das DHBW-Modul "Neue Konzepte" - Proof of Concept Selective Disclosure*
+
+*Version 6.0 - November 2025*
