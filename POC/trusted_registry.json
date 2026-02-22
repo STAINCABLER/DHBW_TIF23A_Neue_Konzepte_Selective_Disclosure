@@ -1,6 +1,6 @@
 {
     "description": "Trust Registry - Vertrauenswürdige Issuer und ihre Public Keys",
-    "version": "4.0",
+    "version": "7.0",
     "issuers": {
         "https://issuer.example.com": {
             "name": "Bundesdruckerei Deutschland",
@@ -10,6 +10,18 @@
         },
         "http://localhost:5001": {
             "name": "Bürgerbüro Musterstadt (Local)",
+            "type": "government",
+            "public_key": null,
+            "fetch_from_metadata": true
+        },
+        "https://sd-issuer.ltm-labs.de:5001": {
+            "name": "Illuminati Issuer (Secure)",
+            "type": "government",
+            "public_key": null,
+            "fetch_from_metadata": true
+        },
+        "http://sd-issuer.ltm-labs.de:5001": {
+            "name": "Illuminati Issuer (Insecure)",
             "type": "government",
             "public_key": null,
             "fetch_from_metadata": true
