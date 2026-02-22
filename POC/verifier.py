@@ -15,8 +15,10 @@ import sys
 import json
 import secrets
 import threading
+import socket
+import time
 import argparse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, Tuple
 
 from flask import Flask, request, jsonify
@@ -52,7 +54,7 @@ def load_config():
     # Für Rückwärtskompatibilität: flache Keys
     CONFIG = {
         "verifier_name": config.get("verifier_name", "Altersverifikation Service"),
-        "verifier_uri": config.get("verifier_uri", "https://localhost:5002"),
+        "verifier_uri": config.get("verifier_uri", "http://sd-verifier.ltm-labs.de:5002"),
         "host": config.get("host", "0.0.0.0"),
         "port": config.get("port", 5002),
         "ssl_cert": config.get("ssl", {}).get("cert_file", "certs/verifier.crt"),
@@ -60,7 +62,7 @@ def load_config():
         "ssl_enabled": config.get("ssl", {}).get("enabled", True),
         "challenge_validity_minutes": config.get("challenge_validity_minutes", 5),
         "trust_registry_file": config.get("trust_registry_file", "trusted_registry.json"),
-        "clock_skew_seconds": config.get("clock_skew_seconds", 60),
+        "clock_skew_seconds": config.get("clock_skew_seconds", 20),
         "inspection_mode": config.get("inspection_mode", True)
     }
     
@@ -230,7 +232,7 @@ def challenge_endpoint():
     state = secrets.token_urlsafe(16)
     
     pending_challenges[nonce] = {
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "state": state
     }
     
@@ -380,8 +382,8 @@ def verify_endpoint():
         nonce_valid = nonce in pending_challenges
         if nonce_valid:
             challenge_data = pending_challenges[nonce]
-            created_at = datetime.fromisoformat(challenge_data["created_at"])
-            if datetime.utcnow() - created_at > timedelta(minutes=CONFIG["challenge_validity_minutes"]):
+            created_at = datetime.fromisoformat(challenge_data["created_at"]).replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) - created_at > timedelta(minutes=CONFIG["challenge_validity_minutes"]):
                 pending_challenges.pop(nonce)
                 nonce_valid = False
         
@@ -517,7 +519,7 @@ def health():
 def resolve_shortcode(code: str):
     """
     Version 4.0: Short-Code zu Nonce auflösen.
-    Ermöglicht einfache Eingabe einer 4-stelligen Zahl statt langer URIs.
+    Ermöglicht einfache Eingabe einer 6-stelligen Zahl statt langer URIs.
     """
     if code in short_codes:
         nonce = short_codes[code]
@@ -578,17 +580,17 @@ def create_verification_request():
     state = secrets.token_urlsafe(16)
     
     pending_challenges[nonce] = {
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "state": state
     }
     
     # Request URI erstellen
     request_uri = f"openid-verification://?verifier={CONFIG['verifier_uri']}&nonce={nonce}&state={state}"
     
-    # Version 4.0: Short-Code generieren (4-stellig)
-    short_code = str(secrets.randbelow(10000)).zfill(4)
+    # Version 7.0: Short-Code generieren (6-stellig)
+    short_code = str(secrets.randbelow(1000000)).zfill(6)
     while short_code in short_codes:  # Kollisionen vermeiden
-        short_code = str(secrets.randbelow(10000)).zfill(4)
+        short_code = str(secrets.randbelow(1000000)).zfill(6)
     short_codes[short_code] = nonce
     
     console.print(Panel(
@@ -623,10 +625,10 @@ def show_pending_challenges():
     table.add_column("Erstellt", style="green")
     table.add_column("Status", style="yellow")
     
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     
     for nonce, data in pending_challenges.items():
-        created_at = datetime.fromisoformat(data["created_at"])
+        created_at = datetime.fromisoformat(data["created_at"]).replace(tzinfo=timezone.utc)
         age_minutes = (now - created_at).total_seconds() / 60
         
         if age_minutes > CONFIG["challenge_validity_minutes"]:
@@ -667,11 +669,11 @@ def show_help():
 
 def clear_expired_challenges():
     """Löscht abgelaufene Challenges."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     expired = []
     
     for nonce, data in pending_challenges.items():
-        created_at = datetime.fromisoformat(data["created_at"])
+        created_at = datetime.fromisoformat(data["created_at"]).replace(tzinfo=timezone.utc)
         if (now - created_at).total_seconds() / 60 > CONFIG["challenge_validity_minutes"]:
             expired.append(nonce)
     
@@ -683,7 +685,8 @@ def clear_expired_challenges():
 
 def command_loop():
     """Terminal-Befehlsschleife."""
-    console.print("\n[bold green]Verifier bereit![/bold green] Tippe 'help' für Hilfe.\n")
+    # Version 7.0: Hilfe automatisch beim Start anzeigen
+    show_help()
     
     while True:
         try:
@@ -821,7 +824,7 @@ def main():
     console.print(Panel(
         f"[bold]{CONFIG['verifier_name']}[/bold]\n"
         "SD-JWT Credential Verifier\n"
-        f"Version 6.0 - Port {CONFIG['port']}",
+        f"Version 7.0 - Port {CONFIG['port']}",
         title="\U0001f50d Verifier Server",
         border_style="blue"
     ))
@@ -867,6 +870,24 @@ def main():
         daemon=True
     )
     server_thread.start()
+
+    host = CONFIG.get("host", "127.0.0.1")
+    target_host = "127.0.0.1" if host in ["0.0.0.0", "::"] else host
+    deadline = time.time() + 5.0
+    server_ready = False
+
+    while time.time() < deadline:
+        try:
+            with socket.create_connection((target_host, CONFIG["port"]), timeout=0.5):
+                server_ready = True
+                break
+        except OSError:
+            time.sleep(0.1)
+
+    if server_ready:
+        console.print("\n[bold green]Verifier bereit![/bold green]\n")
+    else:
+        console.print("\n[yellow]![/yellow] Serverstart verzögert, Konsole bleibt aktiv.\n")
     
     # Befehlsschleife starten
     command_loop()

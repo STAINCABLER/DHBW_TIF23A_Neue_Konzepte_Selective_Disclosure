@@ -14,8 +14,10 @@ import sys
 import json
 import secrets
 import threading
+import socket
+import time
 import argparse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional
 
 from flask import Flask, request, jsonify
@@ -46,7 +48,7 @@ def load_config():
     # Für Rückwärtskompatibilität: flache Keys
     CONFIG = {
         "issuer_name": config.get("issuer_name", "Bundesamt für Digitale Identität"),
-        "issuer_uri": config.get("issuer_uri", "https://localhost:5001"),
+        "issuer_uri": config.get("issuer_uri", "http://sd-issuer.ltm-labs.de:5001"),
         "host": config.get("host", "0.0.0.0"),
         "port": config.get("port", 5001),
         "ssl_cert": config.get("ssl", {}).get("cert_file", "certs/issuer.crt"),
@@ -61,7 +63,7 @@ def load_config():
     }
 
 # Version 4.0: Short-Code Storage für Offers
-short_codes: Dict[str, str] = {}  # 4-stelliger Code -> full offer URI
+short_codes: Dict[str, str] = {}  # 6-stelliger Code -> full offer URI
 
 # ============================================================================
 # Globale Variablen
@@ -210,8 +212,8 @@ def token_endpoint():
     offer = pending_offers.pop(pre_auth_code)
     
     # Prüfe Ablauf (5 Minuten)
-    created_at = datetime.fromisoformat(offer["created_at"])
-    if datetime.utcnow() - created_at > timedelta(minutes=5):
+    created_at = datetime.fromisoformat(offer["created_at"]).replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) - created_at > timedelta(minutes=5):
         console.print("[red]✗[/red] Pre-Auth Code abgelaufen")
         return jsonify({"error": "invalid_grant", "error_description": "Code expired"}), 400
     
@@ -219,7 +221,7 @@ def token_endpoint():
     access_token = secrets.token_urlsafe(32)
     access_tokens[access_token] = {
         "citizen_code": offer["citizen_code"],
-        "expires_at": (datetime.utcnow() + timedelta(minutes=10)).isoformat()
+        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
     }
     
     console.print(f"[green]✓[/green] Access Token erstellt für {offer['citizen_code']}")
@@ -252,8 +254,8 @@ def credential_endpoint():
     token_data = access_tokens[access_token]
     
     # Token-Ablauf prüfen
-    expires_at = datetime.fromisoformat(token_data["expires_at"])
-    if datetime.utcnow() > expires_at:
+    expires_at = datetime.fromisoformat(token_data["expires_at"]).replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) > expires_at:
         access_tokens.pop(access_token)
         console.print("[red]✗[/red] Access Token abgelaufen")
         return jsonify({"error": "invalid_token", "error_description": "Token expired"}), 401
@@ -358,8 +360,7 @@ def credential_endpoint():
             console.print(f"[cyan]...[/cyan] {decoy_count} Decoy-Hashes hinzugefügt (Anti-Profiling)")
         
         # Payload erstellen
-        from datetime import datetime, timedelta
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         exp = now + timedelta(days=365)
         
         payload = {
@@ -464,7 +465,7 @@ def health():
 def resolve_shortcode(code: str):
     """
     Version 4.0: Short-Code zu voller Offer-URI auflösen.
-    Ermöglicht einfache Eingabe einer 4-stelligen Zahl statt langer URLs.
+    Ermöglicht einfache Eingabe einer 6-stelligen Zahl statt langer URLs.
     """
     if code in short_codes:
         offer_uri = short_codes[code]
@@ -496,16 +497,16 @@ def create_offer(citizen_code: str):
     pre_auth_code = secrets.token_urlsafe(24)
     pending_offers[pre_auth_code] = {
         "citizen_code": citizen_code,
-        "created_at": datetime.utcnow().isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat()
     }
     
     # Offer URI erstellen
     offer_uri = f"openid-credential-offer://?credential_issuer={CONFIG['issuer_uri']}&pre-authorized_code={pre_auth_code}"
     
-    # Version 4.0: Short-Code generieren (4-stellig)
-    short_code = str(secrets.randbelow(10000)).zfill(4)
+    # Version 7.0: Short-Code generieren (6-stellig)
+    short_code = str(secrets.randbelow(1000000)).zfill(6)
     while short_code in short_codes:  # Kollisionen vermeiden
-        short_code = str(secrets.randbelow(10000)).zfill(4)
+        short_code = str(secrets.randbelow(1000000)).zfill(6)
     short_codes[short_code] = offer_uri
     
     console.print(Panel(
@@ -612,7 +613,8 @@ def show_help():
 
 def command_loop():
     """Terminal-Befehlsschleife."""
-    console.print("\n[bold green]Issuer bereit![/bold green] Tippe 'help' für Hilfe.\n")
+    # Version 7.0: Hilfe automatisch beim Start anzeigen
+    show_help()
     
     while True:
         try:
@@ -763,7 +765,7 @@ def main():
     console.print(Panel(
         f"[bold]{CONFIG['issuer_name']}[/bold]\n"
         "SD-JWT Verifiable Credential Issuer\n"
-        f"Version 6.0 - Port {CONFIG['port']}",
+        f"Version 7.0 - Port {CONFIG['port']}",
         title="\U0001f3db\ufe0f Issuer Server",
         border_style="blue"
     ))
@@ -808,6 +810,24 @@ def main():
         daemon=True
     )
     server_thread.start()
+
+    host = CONFIG.get("host", "127.0.0.1")
+    target_host = "127.0.0.1" if host in ["0.0.0.0", "::"] else host
+    deadline = time.time() + 5.0
+    server_ready = False
+
+    while time.time() < deadline:
+        try:
+            with socket.create_connection((target_host, CONFIG["port"]), timeout=0.5):
+                server_ready = True
+                break
+        except OSError:
+            time.sleep(0.1)
+
+    if server_ready:
+        console.print("\n[bold green]Issuer bereit![/bold green]\n")
+    else:
+        console.print("\n[yellow]![/yellow] Serverstart verzögert, Konsole bleibt aktiv.\n")
     
     # Befehlsschleife starten
     command_loop()

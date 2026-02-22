@@ -613,3 +613,44 @@ Hier ist der finale, konsolidierte Überblick über alle Komponenten, die du nun
     *   Separation auf 3 Computer, synchronisiert über NTP-Toleranz (Leeway), verbunden über echtes HTTPS.
 
 Damit hast du einen vollständigen, akademisch anspruchsvollen Plan, der tief in die Details von SD-JWT (Quellen) und OID4VC (Quellen) eingeht, aber durch die Terminal-UI und JSON-Backends in einem Uni-Semester realisierbar bleibt.
+
+## Version 7.0 - Stand: November 9, 2025
+
+## Korrektur-Anforderungen für den SD-JWT PoC
+
+Bitte passe den bestehenden Implementierungsplan basierend auf dem aktuellen Testing-Feedback wie folgt radikal an. Ignoriere vorherige Anweisungen zu SSL/HTTPS und statischen Wallet-Konfigurationen.
+
+### 1. Netzwerkkonfiguration (HTTP Only & Domains)
+*   **Protokoll:** Entferne jegliche SSL/TLS Konfiguration. Die Flask-Server (`issuer.py`, `verifier.py`) sollen als **reine HTTP-Server** laufen (`app.run(host='0.0.0.0', ...)` ohne `ssl_context`).
+*   **URLs:** Setze folgende **Default-Base-URLs** fest codiert in den Code (aber überschreibbar via Environment Variable):
+    *   Issuer: `http://sd-issuer.ltm-labs.de:5001`
+    *   Verifier: `http://sd-verifier.ltm-labs.de:5002`
+*   **Wallet:** Das Wallet benötigt keinen Server-Port, da es nur als Client agiert.
+
+### 2. Wallet-Architektur: "Universal Wallet"
+*   **Keine Start-Parameter:** Das Skript `wallet.py` darf beim Starten **keine** Argumente für Issuer- oder Verifier-URLs mehr verlangen.
+*   **Dynamische Auflösung:**
+    *   Wenn der User einen Short-Code oder eine URL eingibt, muss das Wallet selbst erkennen, wohin die Reise geht.
+    *   *Issuance:* Das Wallet extrahiert die Issuer-URL aus dem `credential_offer`.
+    *   *Presentation:* Das Wallet extrahiert die Verifier-URL und den Endpunkt aus dem `request_uri` bzw. dem Authorization Request.
+
+### 3. UX & Short-Codes (6-Stellig)
+*   **Sofortiges Menü:** Wenn die Skripte (Issuer, Verifier, Wallet) starten, muss **sofort** (automatisch) die Liste der verfügbaren Befehle und der aktuelle Status (z.B. "Server running on...") angezeigt werden. Der User soll nicht erst `help` tippen müssen.
+*   **6-Digit Codes:** Erhöhe die Länge der generierten Session-IDs/Short-Codes beim Issuer und Verifier von 4 auf **6 Ziffern** (z.B. `839201`), um die Sicherheit zu erhöhen.
+
+### 4. Zeit-Synchronisation (Leeway)
+*   **Toleranz verringern:** Setze in `sd_jwt_utils.py` beim Validieren von `nbf` (not before) und `exp` (expiration) sowie beim Prüfen des `iat` (issued at) den Toleranzbereich (`leeway`) auf **20 Sekunden** (statt vorher 60). Das System soll strikter sein, aber leichte Uhren-Abweichungen der VMs tolerieren.
+
+### Zusammenfassung der geänderten Flows
+
+**Neuer Issuance Flow (HTTP):**
+1.  Admin am Issuer tippt: `offer <user_id>`
+2.  Issuer generiert Code `123456` und speichert Session in Memory.
+3.  User am Wallet tippt: `receive 123456` (oder die volle URL `http://sd-issuer.ltm-labs.de:5001/offer/123456`).
+4.  Wallet fragt Issuer per HTTP an `http://sd-issuer.ltm-labs.de:5001/...`.
+
+**Neuer Presentation Flow (HTTP):**
+1.  Admin am Verifier tippt: `request`
+2.  Verifier generiert Code `987654` und wartet auf `http://sd-verifier.ltm-labs.de:5002/verify`.
+3.  User am Wallet tippt: `present 987654` (oder die URL).
+4.  Wallet sendet Daten per HTTP POST an den Verifier.

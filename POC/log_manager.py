@@ -180,6 +180,7 @@ class TrafficMonitor:
                 Syntax(body_json, "json", theme="monokai", line_numbers=False)
             ])
         
+        console.print()  # Newline vor Panel (verhindert Spinner-Kollision)
         console.print(Panel(
             panel_content if not body else Syntax(
                 f"{method} {url}\n\n{json.dumps(body, indent=2, ensure_ascii=False)[:500]}",
@@ -204,12 +205,14 @@ class TrafficMonitor:
             if len(body_json) > 500:
                 body_json = body_json[:500] + "\n... (gekürzt)"
             
+            console.print()  # Newline vor Panel (verhindert Spinner-Kollision)
             console.print(Panel(
                 Syntax(body_json, "json", theme="monokai", line_numbers=False),
                 title=f"[bold yellow]⬇ INCOMING RESPONSE ({status_code})[/bold yellow]",
                 border_style=COLORS["traffic"]
             ))
         else:
+            console.print()  # Newline vor Panel (verhindert Spinner-Kollision)
             console.print(Panel(
                 content,
                 title="[bold yellow]⬇ INCOMING RESPONSE[/bold yellow]",
@@ -228,6 +231,7 @@ class TrafficMonitor:
         content.append("Issuer: ", style="cyan")
         content.append(f"{credential_summary.get('issuer', 'Unknown')}\n", style="white")
         
+        console.print()  # Newline vor Panel (verhindert Spinner-Kollision)
         console.print(Panel(
             content,
             title="[bold blue]💾 CREDENTIAL STORAGE[/bold blue]",
@@ -260,6 +264,7 @@ class TrafficMonitor:
                     "Bleibt in der Wallet"
                 )
         
+        console.print()  # Newline vor Panel (verhindert Spinner-Kollision)
         console.print(Panel(
             table,
             title="[bold magenta]🔒 PRIVACY DECISION[/bold magenta]",
@@ -281,6 +286,7 @@ class TrafficMonitor:
         content.append("✓ ", style="green bold")
         content.append("Signiert mit Wallet Private Key", style="green")
         
+        console.print()  # Newline vor Panel (verhindert Spinner-Kollision)
         console.print(Panel(
             content,
             title="[bold cyan]🔑 KEY BINDING JWT[/bold cyan]",
@@ -301,6 +307,7 @@ class TrafficMonitor:
         content.append("\n\n", style="dim")
         content.append(f"{sd_jwt[:30]}...~...~{kb_jwt[-30:]}", style="dim white")
         
+        console.print()  # Newline vor Panel (verhindert Spinner-Kollision)
         console.print(Panel(
             content,
             title="[bold yellow]📤 OUTGOING PRESENTATION[/bold yellow]",

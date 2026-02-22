@@ -16,14 +16,14 @@ import json
 import secrets
 import gzip
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Tuple, List, Dict, Any, Optional
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 from cryptography.hazmat.primitives import serialization
 
-# Version 4.0: Clock Skew Toleranz (Sekunden)
-CLOCK_SKEW_LEEWAY = 60
+# Version 7.0: Clock Skew Toleranz auf 20 Sekunden reduziert
+CLOCK_SKEW_LEEWAY = 20
 
 
 # ============================================================================
@@ -243,7 +243,7 @@ def validate_time_claims(payload: Dict[str, Any], leeway: int = CLOCK_SKEW_LEEWA
     Returns:
         Tuple[bool, str]: (is_valid, error_message)
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     now_ts = int(now.timestamp())
     
     # Prüfe "not before" (nbf)
@@ -352,7 +352,7 @@ def create_sd_jwt(
         random.shuffle(sd_array)
     
     # Erstelle SD-JWT Payload
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     exp = now + timedelta(days=validity_days)
     
     payload = {
@@ -415,7 +415,7 @@ def create_kb_jwt(
     sd_jwt_hash = hashlib.sha256(sd_jwt.encode('ascii')).digest()
     
     payload = {
-        "iat": int(datetime.utcnow().timestamp()),
+        "iat": int(datetime.now(timezone.utc).timestamp()),
         "aud": audience,
         "nonce": nonce,
         "sd_hash": base64url_encode(sd_jwt_hash)

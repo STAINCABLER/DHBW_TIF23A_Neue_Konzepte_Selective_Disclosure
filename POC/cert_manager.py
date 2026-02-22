@@ -17,7 +17,7 @@ import json
 import time
 import hashlib
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 
 from rich.console import Console
@@ -124,8 +124,8 @@ def generate_self_signed_cert(
         .issuer_name(issuer)
         .public_key(private_key.public_key())
         .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.utcnow())
-        .not_valid_after(datetime.utcnow() + timedelta(days=days_valid))
+        .not_valid_before(datetime.now(timezone.utc))
+        .not_valid_after(datetime.now(timezone.utc) + timedelta(days=days_valid))
         .add_extension(
             x509.SubjectAlternativeName([
                 x509.DNSName(domain),

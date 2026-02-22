@@ -34,7 +34,7 @@ CONFIGS_DIR = Path(__file__).parent / "configs"
 DEFAULT_CONFIGS = {
     "issuer": {
         "issuer_name": "Bundesamt für Digitale Identität",
-        "issuer_uri": "https://localhost:5001",
+        "issuer_uri": "http://sd-issuer.ltm-labs.de:5001",
         "host": "0.0.0.0",
         "port": 5001,
         "ssl": {
@@ -60,7 +60,7 @@ DEFAULT_CONFIGS = {
     
     "verifier": {
         "verifier_name": "Altersverifikation Service",
-        "verifier_uri": "https://localhost:5002",
+        "verifier_uri": "http://sd-verifier.ltm-labs.de:5002",
         "host": "0.0.0.0",
         "port": 5002,
         "ssl": {
@@ -79,13 +79,13 @@ DEFAULT_CONFIGS = {
         "trust_registry_file": "trusted_registry.json",
         "clock_skew_seconds": 60,
         "inspection_mode": True,
-        "trusted_issuers": ["https://localhost:5001", "http://localhost:5001"],
+        "trusted_issuers": ["http://sd-issuer.ltm-labs.de:5001", "http://localhost:5001"],
         "first_run_completed": False
     },
     
     "wallet": {
-        "default_issuer": "https://localhost:5001",
-        "default_verifier": "https://localhost:5002",
+        "default_issuer": "http://sd-issuer.ltm-labs.de:5001",
+        "default_verifier": "http://sd-verifier.ltm-labs.de:5002",
         "wallet_store_path": "wallet_store.json",
         "inspection_mode": True,
         "first_run_completed": False
@@ -230,7 +230,7 @@ SETUP_PROMPTS = {
         {
             "key": "trusted_issuers",
             "question": "Vertrauenswürdige Issuer (kommasepariert)",
-            "default": "https://localhost:5001",
+            "default": "http://sd-issuer.ltm-labs.de:5001",
             "type": "list"
         },
         {
@@ -245,13 +245,13 @@ SETUP_PROMPTS = {
         {
             "key": "default_issuer",
             "question": "Standard-Issuer URL",
-            "default": "https://localhost:5001",
+            "default": "http://sd-issuer.ltm-labs.de:5001",
             "type": "text"
         },
         {
             "key": "default_verifier",
             "question": "Standard-Verifier URL",
-            "default": "https://localhost:5002",
+            "default": "http://sd-verifier.ltm-labs.de:5002",
             "type": "text"
         },
         {

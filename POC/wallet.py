@@ -13,7 +13,7 @@ import os
 import sys
 import json
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from urllib.parse import urlparse, parse_qs
 
@@ -47,8 +47,8 @@ def load_config():
     
     CONFIG = {
         "wallet_store_path": config.get("wallet_store_path", "wallet_store.json"),
-        "default_issuer": config.get("default_issuer", "https://localhost:5001"),
-        "default_verifier": config.get("default_verifier", "https://localhost:5002"),
+        "default_issuer": config.get("default_issuer", "http://sd-issuer.ltm-labs.de:5001"),
+        "default_verifier": config.get("default_verifier", "http://sd-verifier.ltm-labs.de:5002"),
         "inspection_mode": config.get("inspection_mode", True)
     }
 
@@ -139,7 +139,7 @@ def receive_credential():
     """Empfängt ein neues Credential vom Issuer."""
     console.print(Panel(
         "[bold]Credential empfangen[/bold]\n\n"
-        "Gib den Pre-Authorized Code ODER Short-Code (4 Ziffern) ein.",
+        "Gib den Pre-Authorized Code ODER Short-Code (6 Ziffern) ein.",
         title="📥 Issuance",
         border_style="cyan"
     ))
@@ -152,7 +152,7 @@ def receive_credential():
     issuer_url = issuer_url.rstrip('/')
     
     # Pre-Authorized Code oder Short-Code eingeben
-    code_input = Prompt.ask("Pre-Authorized Code oder Short-Code (4 Ziffern)")
+    code_input = Prompt.ask("Pre-Authorized Code oder Short-Code (6 Ziffern)")
     
     if not code_input:
         console.print("[red]✗[/red] Kein Code eingegeben")
@@ -160,8 +160,8 @@ def receive_credential():
     
     pre_auth_code = code_input
     
-    # Version 4.0: Prüfe ob Short-Code (4-stellig, nur Ziffern)
-    if len(code_input) == 4 and code_input.isdigit():
+    # Version 7.0: Prüfe ob Short-Code (6-stellig, nur Ziffern)
+    if len(code_input) == 6 and code_input.isdigit():
         console.print(f"[cyan]...[/cyan] Short-Code erkannt, löse auf...")
         try:
             shortcode_response = requests.get(
@@ -254,7 +254,7 @@ def receive_credential():
         proof_payload = {
             "iss": "wallet",
             "aud": issuer_url,
-            "iat": int(datetime.utcnow().timestamp()),
+            "iat": int(datetime.now(timezone.utc).timestamp()),
             "nonce": c_nonce
         }
         
@@ -318,7 +318,7 @@ def receive_credential():
     credential_entry = {
         "id": len(wallet_data["credentials"]) + 1,
         "issuer": payload.get("iss", issuer_url),
-        "issued_at": datetime.utcnow().isoformat(),
+        "issued_at": datetime.now(timezone.utc).isoformat(),
         "expires_at": datetime.fromtimestamp(payload.get("exp", 0)).isoformat(),
         "sd_jwt": sd_jwt,
         "disclosures": disclosures,
@@ -410,7 +410,7 @@ def present_credential():
     
     # Verifier URL/Short-Code eingeben
     console.print("\n[bold]Verifier auswählen:[/bold]")
-    console.print("[dim]Gib die Verifier URL ODER einen Short-Code (4 Ziffern) ein.[/dim]")
+    console.print("[dim]Gib die Verifier URL ODER einen Short-Code (6 Ziffern) ein.[/dim]")
     
     verifier_input = Prompt.ask(
         "Verifier URL oder Short-Code",
@@ -421,8 +421,8 @@ def present_credential():
     nonce = None
     audience = None
     
-    # Version 4.0: Short-Code Auflösung
-    if len(verifier_input) == 4 and verifier_input.isdigit():
+    # Version 7.0: Short-Code Auflösung (6-stellig)
+    if len(verifier_input) == 6 and verifier_input.isdigit():
         console.print(f"[cyan]...[/cyan] Short-Code erkannt, löse auf...")
         # Versuche bei default Verifier
         shortcode_url = CONFIG["default_verifier"]
@@ -782,7 +782,7 @@ def main():
     console.print(Panel(
         "[bold]SD-JWT Wallet[/bold]\n"
         "Deine digitale Brieftasche für Verifiable Credentials\n"
-        "Version 6.0",
+        "Version 7.0",
         title="👛 Wallet",
         border_style="magenta"
     ))
@@ -796,7 +796,10 @@ def main():
     load_wallet()
     ensure_keys()
     
-    console.print("\n[bold green]Wallet bereit![/bold green] Tippe 'help' für Hilfe.\n")
+    console.print("\n[bold green]Wallet bereit![/bold green]\n")
+    
+    # Version 7.0: Hilfe automatisch beim Start anzeigen
+    show_help()
     
     # Hauptschleife
     while True:
