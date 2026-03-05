@@ -1,250 +1,199 @@
-# SD-JWT VC Proof of Concept
+# SD-JWT VC — Proof of Concept
 
-Dieses Verzeichnis enthält die Implementierung eines **Selective Disclosure Verifiable Credential Systems** basierend auf dem SD-JWT Standard.
+> Implementierung eines **Selective Disclosure Verifiable Credential Systems** basierend auf dem SD-JWT Standard (IETF).
 
-**Version 4.0** - Mit Trust Registry, Decoy Hashes, Short-Codes und Consent Screen.
+---
+
+## Schnellstart
+
+### Voraussetzungen
+
+- Python 3.10+
+- 3 Terminal-Fenster
+
+### Installation
+
+```powershell
+cd .\POC
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+### Starten
+
+Jede Komponente in einem separaten Terminal starten:
+
+```powershell
+# Terminal 1 — Issuer
+python .\issuer.py
+
+# Terminal 2 — Verifier
+python .\verifier.py
+
+# Terminal 3 — Wallet
+python .\wallet.py
+```
+
+> Beim **ersten Start** wird automatisch ein interaktiver Setup-Wizard ausgeführt.
+
+---
+
+## Gehostete Instanzen
+
+| Dienst | URL |
+|--------|-----|
+| **Illuminati Issuer** | `http://sd-issuer.ltm-labs.de:5001` |
+| **Tinhat Verifier** | `http://sd-verifier.ltm-labs.de:5002` |
+
+---
 
 ## Komponenten
 
 | Datei | Beschreibung |
 |-------|--------------|
-| `sd_jwt_utils.py` | Shared Library mit Krypto-Funktionen |
-| `log_manager.py` | Live-Inspection Logging (V3.0) |
+| `issuer.py` | Issuer Server — stellt signierte SD-JWT Credentials aus |
+| `wallet.py` | Wallet Client — empfängt, speichert und präsentiert Credentials |
+| `verifier.py` | Verifier Server — prüft Signaturen und extrahiert Claims |
+| `sd_jwt_utils.py` | Shared Library — Krypto-Funktionen (Ed25519, SHA-256) |
+| `log_manager.py` | Live-Inspection Logging |
+| `logger_config.py` | Logger-Konfiguration |
 | `config_manager.py` | Konfigurationsverwaltung mit First-Run Setup |
-| `cert_manager.py` | ACME/Let's Encrypt Zertifikate (V4.0) |
-| `trusted_registry.json` | Trust Registry für Issuer (V4.0) |
-| `issuer.py` | Issuer Server (Behörde) |
-| `wallet.py` | Wallet Client (Bürger) |
-| `verifier.py` | Verifier Server (Prüfstelle) |
-| `citizen_db.json` | Demo-Bürgerdatenbank |
-| `configs/` | Konfigurationsdateien (pro Komponente) |
+| `cert_manager.py` | ACME/Let's Encrypt Zertifikatsverwaltung |
+| `citizen_db.json` | Demo-Bürgerdatenbank (4 Testpersonen) |
+| `trusted_registry.json` | Trust Registry — vertrauenswürdige Issuer |
 | `requirements.txt` | Python-Abhängigkeiten |
+| `configs/` | Generierte Konfigurationsdateien (pro Komponente) |
 
-## Schnellstart
+---
 
-### 1. Installation
-
-```bash
-# Virtual Environment erstellen (empfohlen)
-python -m venv venv
-venv\Scripts\activate  # Windows
-# source venv/bin/activate  # Linux/Mac
-
-# Abhängigkeiten installieren
-pip install -r requirements.txt
-```
-
-### 2. Issuer starten (Terminal 1)
-
-```bash
-python issuer.py
-```
-
-### 3. Verifier starten (Terminal 2)
-
-```bash
-python verifier.py
-```
-
-### 4. Wallet starten (Terminal 3)
-
-```bash
-python wallet.py
-```
-
-## Typischer Ablauf
+## Verwendung
 
 ### Credential ausstellen (Issuer → Wallet)
 
-1. **Issuer:** `offer 1234-CODE` - Erstellt ein Credential-Angebot
-2. **Wallet:** `receive` - Gibt den Pre-Authorized Code ein
-3. **Wallet:** Credential wird automatisch gespeichert
+1. **Issuer:** `offer 1234-CODE` — Credential-Angebot erstellen
+2. **Wallet:** `receive` — Pre-Authorized Code eingeben
+3. Credential wird automatisch gespeichert
 
 ### Credential präsentieren (Wallet → Verifier)
 
-1. **Wallet:** `present` - Wählt Credential und Claims aus
-2. **Verifier:** Zeigt verifizierte Daten an
+1. **Wallet:** `present` — Credential und Claims selektiv auswählen
+2. **Verifier:** zeigt verifizierte Daten an
 
-### Credential widerrufen (Issuer)
+### Credential widerrufen
 
 ```
 issuer> revoke 0
 ```
 
-## Befehle
+---
+
+## CLI-Befehle
 
 ### Issuer
-- `offer <code>` - Credential Offer erstellen
-- `list` - Alle Bürger anzeigen
-- `revoke <index>` - Credential widerrufen
-- `status` - Server-Status
-- `help` - Hilfe
+
+| Befehl | Beschreibung |
+|--------|--------------|
+| `offer <code>` | Credential-Angebot erstellen |
+| `list` | Alle Bürger anzeigen |
+| `revoke <index>` | Credential widerrufen |
+| `status` | Server-Status |
+| `help` | Hilfe |
 
 ### Wallet
-- `receive` - Credential empfangen
-- `present` - Credential präsentieren
-- `list` - Gespeicherte Credentials
-- `delete` - Credential löschen
-- `keys` - Schlüssel anzeigen
-- `help` - Hilfe
+
+| Befehl | Beschreibung |
+|--------|--------------|
+| `receive` | Credential empfangen |
+| `present` | Credential präsentieren |
+| `list` | Gespeicherte Credentials |
+| `delete` | Credential löschen |
+| `keys` | Schlüssel anzeigen |
+| `help` | Hilfe |
 
 ### Verifier
-- `request` - Verification Request erstellen
-- `challenges` - Offene Challenges anzeigen
-- `clear` - Abgelaufene Challenges löschen
-- `status` - Server-Status
-- `help` - Hilfe
+
+| Befehl | Beschreibung |
+|--------|--------------|
+| `request` | Verification Request erstellen |
+| `challenges` | Offene Challenges anzeigen |
+| `clear` | Abgelaufene Challenges löschen |
+| `status` | Server-Status |
+| `help` | Hilfe |
+
+---
+
+## Tools
+
+### Konfiguration
+
+```powershell
+python .\config_manager.py help
+
+# Beispiele
+python .\config_manager.py show issuer
+python .\config_manager.py show verifier
+python .\config_manager.py show wallet
+python .\config_manager.py reset issuer
+```
+
+### Zertifikate
+
+```powershell
+python .\cert_manager.py help
+
+# Selbstsigniert (Entwicklung)
+python .\cert_manager.py self-sign
+
+# Let's Encrypt mit Cloudflare (Produktion)
+python .\cert_manager.py setup
+python .\cert_manager.py issue
+python .\cert_manager.py status
+```
+
+---
 
 ## Ports
 
-- Issuer: `http://localhost:5001`
-- Verifier: `http://localhost:5002`
+| Komponente | Standard-Port |
+|------------|---------------|
+| Issuer | `5001` |
+| Verifier | `5002` |
 
-## Live-Inspection Mode (Version 3.0)
-
-Version 3.0 fügt einen **Live-Inspection Mode** hinzu, der alle internen Operationen visualisiert:
-
-| Komponente | Modul | Zeigt an |
-|------------|-------|----------|
-| Issuer | Crypto-Insight | Salts, Hashes, Signaturen, Token-Struktur |
-| Wallet | Traffic-Monitor | HTTP-Requests/Responses, Credential-Speicherung |
-| Verifier | Verification-Logic | Prüfschritte als Checkliste, Hash-Verifikation |
-
-Der Mode kann in der Konfigurationsdatei jeder Komponente aktiviert/deaktiviert werden:
-
-```json
-"inspection_mode": true
-```
-
-Oder beim First-Run Setup abgefragt.
-
-## Version 4.0 Features
-
-### Trust Registry
-Der Verifier lädt vertrauenswürdige Issuer aus `trusted_registry.json` statt Hardcoding.
-
-### Decoy Hashes
-Fake-Hashes werden ins `_sd` Array gemischt, um Credential-Profiling zu verhindern:
-```python
-"add_decoys": True,  # In issuer.py CONFIG
-"decoy_count": 2
-```
-
-### Short-Codes
-4-stellige Codes als Alternative zu langen URLs:
-```
-Issuer  → "Short-Code: 4821"
-Wallet  → "Pre-Authorized Code oder Short-Code: 4821"
-```
-
-### Consent Screen
-Explizite Zustimmung mit Übersicht welche Daten geteilt/nicht geteilt werden.
-
-### Clock Skew Toleranz
-60 Sekunden Zeitpuffer bei nbf/exp Validierung für unsynchronisierte Uhren.
+---
 
 ## Konfiguration
 
-Jede Komponente hat eine **eigene Konfigurationsdatei** in `configs/`:
+Jede Komponente hat eine eigene Konfigurationsdatei in `configs/`:
 
-| Komponente | Konfigurationsdatei |
-|------------|---------------------|
+| Komponente | Datei |
+|------------|-------|
 | Issuer | `configs/issuer_config.json` |
 | Verifier | `configs/verifier_config.json` |
 | Wallet | `configs/wallet_config.json` |
 
-### Ersteinrichtung
+Die Konfiguration wird beim ersten Start über den Setup-Wizard erstellt und kann anschließend manuell oder per `config_manager.py` angepasst werden.
 
-Beim **ersten Start** jeder Komponente wird automatisch ein Setup-Wizard gestartet:
+---
 
-```
-python issuer.py    # → Interaktiver Setup-Wizard für Issuer
-python verifier.py  # → Interaktiver Setup-Wizard für Verifier
-python wallet.py    # → Interaktiver Setup-Wizard für Wallet
-```
+## Features
 
-Der Wizard fragt alle notwendigen Werte ab:
-- Server-Port und URL
-- TLS-Modus (selbstsigniert, Let's Encrypt, manuell)
-- Komponenten-spezifische Einstellungen
+- **Selective Disclosure** — Nur ausgewählte Claims freigeben
+- **Key Binding** — Holder-Besitznachweis via Ed25519
+- **Trust Registry** — Verifier prüft Issuer gegen `trusted_registry.json`
+- **Decoy Hashes** — Fake-Hashes gegen Credential-Profiling
+- **Revocation** — Credentials per Bitstring Status List widerrufen
+- **Live-Inspection Mode** — Visualisierung aller Krypto-Operationen
+- **Short-Codes** — 6-stellige Codes als Alternative zu langen URLs
+- **Consent Screen** — Explizite Zustimmung vor Datenweitergabe
+- **Clock Skew Toleranz** — 20s Puffer bei `nbf`/`exp` Validierung
+- **TLS** — Selbstsigniert oder Let's Encrypt via Cloudflare DNS
 
-### Konfiguration verwalten
-
-```bash
-# Konfiguration anzeigen
-python config_manager.py issuer show
-python config_manager.py verifier show
-python config_manager.py wallet show
-
-# Konfiguration zurücksetzen (löst neues Setup aus)
-python config_manager.py issuer reset
-```
-
-### Manuelle Konfiguration
-
-Die JSON-Dateien können auch manuell bearbeitet werden:
-
-**Issuer:**
-```json
-{
-  "issuer_name": "Bundesamt für Digitale Identität",
-  "issuer_uri": "https://localhost:5001",
-  "port": 5001,
-  "ssl": {
-    "enabled": true,
-    "mode": "self-signed",
-    "cert_file": "certs/issuer.crt",
-    "key_file": "certs/issuer.key"
-  },
-  "inspection_mode": true
-}
-```
-
-**Verifier:**
-```json
-{
-  "verifier_name": "Altersverifikation Service",
-  "port": 5002,
-  "trusted_issuers": ["https://localhost:5001"]
-}
-```
-
-**Wallet:**
-```json
-{
-  "default_issuer": "https://localhost:5001",
-  "default_verifier": "https://localhost:5002"
-}
-```
-
-## TLS-Zertifikate
-
-### Option 1: Selbstsigniert (Entwicklung)
-```bash
-python cert_manager.py self-sign
-```
-Erstellt Zertifikate für localhost - Browser zeigen Warnungen.
-
-### Option 2: Let's Encrypt mit Cloudflare (Produktion)
-```bash
-# Einmalige Einrichtung
-python cert_manager.py setup
-
-# Zertifikate anfordern
-python cert_manager.py issue
-
-# Status prüfen
-python cert_manager.py status
-```
-
-Benötigt:
-- Cloudflare API Token (Zone:DNS:Edit)
-- Echte Domain mit Cloudflare DNS
-
-Funktioniert auf **Windows und Linux** - komplett Python-nativ.
+---
 
 ## Hinweise
 
-- Dies ist ein **Proof of Concept** für Bildungszwecke
+- Dies ist ein **Proof of Concept** für Bildungszwecke (DHBW TIF23A)
 - HTTPS ist in der Produktionsumgebung erforderlich
 - SSL-Warnungen werden für den PoC unterdrückt
+- **DNS / Hostnames:** Werden beim Setup FQDNs statt IP-Adressen verwendet (z. B. `sd-issuer.ltm-labs.de`), müssen die Hostnamen auf allen beteiligten Maschinen korrekt auf die jeweiligen IPs auflösen — entweder über DNS-Einträge oder lokale `hosts`-Dateien (`/etc/hosts` bzw. `C:\Windows\System32\drivers\etc\hosts`)

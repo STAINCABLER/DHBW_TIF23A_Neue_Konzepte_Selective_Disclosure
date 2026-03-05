@@ -11,8 +11,8 @@ Diese Anleitung führt dich durch eine vollständige Demo des SD-JWT VC Systems.
 
 ```powershell
 cd POC
-python -m venv venv
-.\venv\Scripts\activate
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
@@ -21,21 +21,21 @@ pip install -r requirements.txt
 ### Terminal 1: Issuer
 ```powershell
 cd POC
-.\venv\Scripts\activate
+.\.venv\Scripts\Activate.ps1
 python issuer.py
 ```
 
 ### Terminal 2: Verifier
 ```powershell
 cd POC
-.\venv\Scripts\activate
+.\.venv\Scripts\Activate.ps1
 python verifier.py
 ```
 
 ### Terminal 3: Wallet
 ```powershell
 cd POC
-.\venv\Scripts\activate
+.\.venv\Scripts\Activate.ps1
 python wallet.py
 ```
 
@@ -48,7 +48,7 @@ python wallet.py
 issuer> offer 1234-CODE
 ```
 
-→ Kopiere den angezeigten **Pre-Authorized Code**
+→ Kopiere den angezeigten **Pre-Authorized Code** oder den **Short-Code** (6-stellige Zahl)
 
 ### Schritt 2: Credential empfangen
 
@@ -56,8 +56,10 @@ issuer> offer 1234-CODE
 ```
 wallet> receive
 Issuer URL [http://localhost:5001]: <Enter>
-Pre-Authorized Code: <Paste Code>
+Pre-Authorized Code oder Short-Code (6 Ziffern): <Code eingeben>
 ```
+
+> **Tipp:** Statt des langen Pre-Authorized Codes kann auch der 6-stellige Short-Code eingegeben werden.
 
 → Das Credential wird gespeichert
 
@@ -70,10 +72,16 @@ wallet> list
 
 ### Schritt 4: Credential präsentieren
 
+**Im Verifier-Terminal (optional):**
+```
+verifier> request
+```
+→ Notiere den angezeigten **Short-Code** (6-stellige Zahl)
+
 **Im Wallet-Terminal:**
 ```
 wallet> present
-Verifier URL [http://localhost:5002]: <Enter>
+Verifier URL oder Short-Code [http://localhost:5002]: <Enter oder Short-Code>
 ```
 
 → Wähle Claims aus (z.B. `1,2` für Name und Geburtsdatum)

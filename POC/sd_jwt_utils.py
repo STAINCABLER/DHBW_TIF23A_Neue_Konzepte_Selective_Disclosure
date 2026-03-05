@@ -238,7 +238,7 @@ def validate_time_claims(payload: Dict[str, Any], leeway: int = CLOCK_SKEW_LEEWA
     
     Args:
         payload: JWT Payload mit Zeit-Claims
-        leeway: Toleranzbereich in Sekunden (Default: 60)
+        leeway: Toleranzbereich in Sekunden (Default: 20)
     
     Returns:
         Tuple[bool, str]: (is_valid, error_message)

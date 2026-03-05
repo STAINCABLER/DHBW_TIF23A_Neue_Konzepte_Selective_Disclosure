@@ -84,6 +84,26 @@ issued_credentials: Dict[str, int] = {}  # citizen_code -> status_index
 # Initialisierung
 # ============================================================================
 
+def compute_age_claims(birthdate_str: str) -> Dict[str, bool]:
+    """Berechnet abgeleitete Alters-Claims gemäß RFC 9901, Appendix A.3 (age_equal_or_over).
+    
+    Prüft ob die Person zum Zeitpunkt der Ausstellung mindestens 18 bzw. 21 Jahre alt ist.
+    
+    Args:
+        birthdate_str: Geburtsdatum im Format YYYY-MM-DD
+    
+    Returns:
+        Dict mit age_over_18 und age_over_21 als bool
+    """
+    birthdate = datetime.strptime(birthdate_str, "%Y-%m-%d").date()
+    today = datetime.now(timezone.utc).date()
+    age = today.year - birthdate.year - ((today.month, today.day) < (birthdate.month, birthdate.day))
+    return {
+        "age_over_18": age >= 18,
+        "age_over_21": age >= 21
+    }
+
+
 def load_or_create_keys():
     """Lädt oder erstellt Issuer-Keys."""
     global issuer_keys
@@ -299,6 +319,12 @@ def credential_endpoint():
     
     citizen_data = citizen_db[citizen_code]
     
+    # Alters-Claims berechnen (RFC 9901, Appendix A.3: age_equal_or_over)
+    age_claims = {}
+    if "birthdate" in citizen_data:
+        age_claims = compute_age_claims(citizen_data["birthdate"])
+        console.print(f"[cyan]...[/cyan] Alters-Claims berechnet: 18+={age_claims['age_over_18']}, 21+={age_claims['age_over_21']}")
+    
     # Status Index zuweisen (falls noch nicht vorhanden)
     if citizen_code not in issued_credentials:
         # Finde nächsten freien Index
@@ -332,7 +358,11 @@ def credential_endpoint():
         disclosures = []
         disclosure_map = {}
         
-        for claim_name, claim_value in citizen_data.items():
+        # Alle Claims inkl. abgeleiteter Alters-Claims
+        all_claims = dict(citizen_data)
+        all_claims.update(age_claims)
+        
+        for claim_name, claim_value in all_claims.items():
             salt = sdjwt.generate_salt()
             
             # Schritt 2: Salting anzeigen
@@ -401,8 +431,10 @@ def credential_endpoint():
         show_separator()
     else:
         # Standard-Erstellung ohne detailliertes Logging
+        all_claims = dict(citizen_data)
+        all_claims.update(age_claims)
         sd_jwt, disclosures, disclosure_map = sdjwt.create_sd_jwt(
-            claims=citizen_data,
+            claims=all_claims,
             issuer_private_key=issuer_private_key,
             holder_public_key=holder_public_key,
             issuer=CONFIG["issuer_uri"],

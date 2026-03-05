@@ -231,23 +231,34 @@ def challenge_endpoint():
     nonce = secrets.token_urlsafe(24)
     state = secrets.token_urlsafe(16)
     
+    # Geforderte Claims aus Query-Parameter übernehmen
+    required_claims_param = request.args.get("required_claims", "")
+    required_claims = [c.strip() for c in required_claims_param.split(",") if c.strip()] if required_claims_param else []
+    
     pending_challenges[nonce] = {
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "state": state
+        "state": state,
+        "required_claims": required_claims
     }
     
     console.print(f"[green]✓[/green] Challenge erstellt: {nonce[:20]}...")
+    if required_claims:
+        console.print(f"[yellow]![/yellow] Geforderte Claims: {', '.join(required_claims)}")
     
     # Version 5.0: File-Logging
     file_logger = get_verifier_logger()
     file_logger.log_nonce_generated(nonce, state)
     
-    return jsonify({
+    response_data = {
         "nonce": nonce,
         "state": state,
         "audience": CONFIG["verifier_uri"],
         "expires_in": CONFIG["challenge_validity_minutes"] * 60
-    })
+    }
+    if required_claims:
+        response_data["required_claims"] = required_claims
+    
+    return jsonify(response_data)
 
 
 @app.route('/verify', methods=['POST'])
@@ -380,9 +391,11 @@ def verify_endpoint():
         
         # 8. Nonce prüfen
         nonce_valid = nonce in pending_challenges
+        challenge_required_claims = []
         if nonce_valid:
             challenge_data = pending_challenges[nonce]
             created_at = datetime.fromisoformat(challenge_data["created_at"]).replace(tzinfo=timezone.utc)
+            challenge_required_claims = challenge_data.get("required_claims", [])
             if datetime.now(timezone.utc) - created_at > timedelta(minutes=CONFIG["challenge_validity_minutes"]):
                 pending_challenges.pop(nonce)
                 nonce_valid = False
@@ -474,6 +487,36 @@ def verify_endpoint():
         
         console.print(f"[green]✓[/green] Status: {revocation_status}")
         
+        # 12. Geforderte Alters-Claims prüfen
+        age_check_passed = True
+        age_check_details = ""
+        if challenge_required_claims:
+            for req_claim in challenge_required_claims:
+                if req_claim not in extracted_claims:
+                    age_check_passed = False
+                    age_check_details = f"Claim '{req_claim}' nicht präsentiert"
+                    break
+                if extracted_claims[req_claim] is not True:
+                    age_check_passed = False
+                    age_check_details = f"Claim '{req_claim}' ist nicht erfüllt (Wert: {extracted_claims[req_claim]})"
+                    break
+            if age_check_passed:
+                age_check_details = ", ".join(challenge_required_claims)
+            
+            if verification:
+                verification.add_check("Altersnachweis", age_check_passed, age_check_details)
+            
+            if not age_check_passed:
+                console.print(f"[red]✗[/red] Altersnachweis fehlgeschlagen: {age_check_details}")
+                if verification:
+                    verification.show_checklist()
+                return jsonify({
+                    "valid": False,
+                    "error": f"Age verification failed: {age_check_details}"
+                })
+            
+            console.print(f"[green]✓[/green] Altersnachweis bestätigt: {age_check_details}")
+        
         # Version 5.0: File-Logging für erfolgreiche Verifikation
         file_logger = get_verifier_logger()
         file_logger.log_verification_result(
@@ -491,13 +534,20 @@ def verify_endpoint():
             console.print("")
             show_verified_claims(extracted_claims, issuer, revocation_status)
         
-        return jsonify({
+        response_data = {
             "valid": True,
             "issuer": issuer,
             "claims": extracted_claims,
             "holder_verified": True,
             "status": revocation_status
-        })
+        }
+        if challenge_required_claims:
+            response_data["age_verification"] = {
+                "required": challenge_required_claims,
+                "passed": age_check_passed
+            }
+        
+        return jsonify(response_data)
         
     except Exception as e:
         console.print(f"[red]✗[/red] Verifikationsfehler: {e}")
@@ -526,12 +576,16 @@ def resolve_shortcode(code: str):
         if nonce in pending_challenges:
             challenge = pending_challenges[nonce]
             console.print(f"[cyan]...[/cyan] Short-Code {code} aufgelöst")
-            return jsonify({
+            response_data = {
                 "found": True,
                 "nonce": nonce,
                 "state": challenge.get("state"),
                 "verifier_uri": CONFIG["verifier_uri"]
-            })
+            }
+            required_claims = challenge.get("required_claims", [])
+            if required_claims:
+                response_data["required_claims"] = required_claims
+            return jsonify(response_data)
     
     return jsonify({
         "found": False,
@@ -574,14 +628,30 @@ def show_failed_verification(error: str):
     ))
 
 
-def create_verification_request():
-    """Erstellt einen Verification Request mit QR-Code und Short-Code (v4.0)."""
+def create_verification_request(mode: str = None):
+    """
+    Erstellt einen Verification Request mit QR-Code und Short-Code (v4.0).
+    
+    Args:
+        mode: Optional 'european' (age_over_18) oder 'american' (age_over_21)
+    """
     nonce = secrets.token_urlsafe(24)
     state = secrets.token_urlsafe(16)
     
+    # Geforderte Claims basierend auf Modus
+    required_claims = []
+    mode_label = ""
+    if mode == "european":
+        required_claims = ["age_over_18"]
+        mode_label = "European (18+)"
+    elif mode == "american":
+        required_claims = ["age_over_21"]
+        mode_label = "American (21+)"
+    
     pending_challenges[nonce] = {
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "state": state
+        "state": state,
+        "required_claims": required_claims
     }
     
     # Request URI erstellen
@@ -593,11 +663,13 @@ def create_verification_request():
         short_code = str(secrets.randbelow(1000000)).zfill(6)
     short_codes[short_code] = nonce
     
+    mode_info = f"\nModus: [bold magenta]{mode_label}[/bold magenta]\nGeforderte Claims: [yellow]{', '.join(required_claims)}[/yellow]" if mode_label else ""
+    
     console.print(Panel(
         f"[bold]Verification Request[/bold]\n\n"
         f"Nonce: [cyan]{nonce[:30]}...[/cyan]\n"
         f"[bold yellow]Short-Code: {short_code}[/bold yellow]  ← Einfache Eingabe in Wallet\n"
-        f"Gültig für: {CONFIG['challenge_validity_minutes']} Minuten",
+        f"Gültig für: {CONFIG['challenge_validity_minutes']} Minuten{mode_info}",
         title="🔍 Verification Request",
         border_style="blue"
     ))
@@ -651,18 +723,22 @@ def show_help():
     help_text = """
 [bold]Verfügbare Befehle:[/bold]
 
-  [cyan]request[/cyan]      Erstellt einen neuen Verification Request
-               mit QR-Code zum Scannen
+  [cyan]request[/cyan]            Erstellt einen neuen Verification Request
+                     mit QR-Code zum Scannen
   
-  [cyan]challenges[/cyan]   Zeigt offene Challenges an
+  [cyan]request european[/cyan]  Verification Request mit Altersnachweis 18+
   
-  [cyan]clear[/cyan]        Löscht abgelaufene Challenges
+  [cyan]request american[/cyan]  Verification Request mit Altersnachweis 21+
   
-  [cyan]status[/cyan]       Zeigt Server-Status
+  [cyan]challenges[/cyan]        Zeigt offene Challenges an
   
-  [cyan]help[/cyan]         Zeigt diese Hilfe
+  [cyan]clear[/cyan]             Löscht abgelaufene Challenges
   
-  [cyan]exit[/cyan]         Beendet den Server
+  [cyan]status[/cyan]            Zeigt Server-Status
+  
+  [cyan]help[/cyan]              Zeigt diese Hilfe
+  
+  [cyan]exit[/cyan]              Beendet den Server
 """
     console.print(Panel(help_text, title="Hilfe", border_style="blue"))
 
@@ -698,6 +774,12 @@ def command_loop():
             
             if command in ["request", "r", "new"]:
                 create_verification_request()
+            
+            elif command in ["request european", "r european"]:
+                create_verification_request(mode="european")
+            
+            elif command in ["request american", "r american"]:
+                create_verification_request(mode="american")
             
             elif command in ["challenges", "c", "pending"]:
                 show_pending_challenges()

@@ -139,24 +139,32 @@ def receive_credential():
     """Empfängt ein neues Credential vom Issuer."""
     console.print(Panel(
         "[bold]Credential empfangen[/bold]\n\n"
-        "Gib den Pre-Authorized Code ODER Short-Code (6 Ziffern) ein.",
+        "Gib die Issuer URL, einen Pre-Authorized Code oder Short-Code (6 Ziffern) ein.\n"
+        "Bei Code-Eingabe wird der Standard-Issuer verwendet.",
         title="📥 Issuance",
         border_style="cyan"
     ))
     
-    # Issuer URL eingeben
-    issuer_url = Prompt.ask(
-        "Issuer URL",
-        default=CONFIG["default_issuer"]
-    )
-    issuer_url = issuer_url.rstrip('/')
+    # Issuer URL, Pre-Auth Code oder Short-Code eingeben
+    console.print(f"[dim]Standard-Issuer: {CONFIG['default_issuer']}[/dim]")
+    user_input = Prompt.ask("Issuer URL, Pre-Authorized Code oder Short-Code")
     
-    # Pre-Authorized Code oder Short-Code eingeben
-    code_input = Prompt.ask("Pre-Authorized Code oder Short-Code (6 Ziffern)")
-    
-    if not code_input:
-        console.print("[red]✗[/red] Kein Code eingegeben")
+    if not user_input:
+        console.print("[red]✗[/red] Keine Eingabe")
         return
+    
+    # Entscheide: URL oder Code?
+    if user_input.startswith("http://") or user_input.startswith("https://"):
+        # Eingabe ist eine URL → Issuer URL setzen, dann Code abfragen
+        issuer_url = user_input.rstrip('/')
+        code_input = Prompt.ask("Pre-Authorized Code oder Short-Code (6 Ziffern)")
+        if not code_input:
+            console.print("[red]✗[/red] Kein Code eingegeben")
+            return
+    else:
+        # Eingabe ist ein Code → Default-Issuer verwenden
+        issuer_url = CONFIG["default_issuer"].rstrip('/')
+        code_input = user_input
     
     pre_auth_code = code_input
     
@@ -420,6 +428,7 @@ def present_credential():
     verifier_url = verifier_input.rstrip('/')
     nonce = None
     audience = None
+    required_claims = []  # Vom Verifier geforderte Claims
     
     # Version 7.0: Short-Code Auflösung (6-stellig)
     if len(verifier_input) == 6 and verifier_input.isdigit():
@@ -437,9 +446,12 @@ def present_credential():
                 if data.get("found"):
                     nonce = data.get("nonce")
                     audience = data.get("verifier_uri", shortcode_url)
+                    required_claims = data.get("required_claims", [])
                     verifier_url = shortcode_url
                     console.print(f"[green]✓[/green] Short-Code aufgelöst")
                     console.print(f"[dim]  Verifier: {verifier_url}[/dim]")
+                    if required_claims:
+                        console.print(f"[yellow]![/yellow] Verifier fordert: {', '.join(required_claims)}")
                 else:
                     console.print(f"[red]✗[/red] Short-Code nicht gefunden")
                     return
@@ -474,8 +486,12 @@ def present_credential():
                 challenge_data = challenge_response.json()
                 nonce = challenge_data["nonce"]
                 audience = challenge_data.get("audience", verifier_url)
+                required_claims = challenge_data.get("required_claims", [])
                 
                 progress.update(task, description="[green]✓[/green] Challenge erhalten")
+                
+                if required_claims:
+                    console.print(f"[yellow]![/yellow] Verifier fordert: {', '.join(required_claims)}")
                 
             except requests.exceptions.RequestException as e:
                 console.print(f"[red]✗[/red] Verbindungsfehler: {e}")
@@ -487,17 +503,34 @@ def present_credential():
     
     claim_names = list(disclosure_mapping.keys())
     
+    # Prüfe ob geforderte Claims vorhanden sind
+    missing_required = [c for c in required_claims if c not in claim_names]
+    if missing_required:
+        console.print(f"[red]✗[/red] Credential enthält geforderte Claims nicht: {', '.join(missing_required)}")
+        console.print("[yellow]Präsentation nicht möglich.[/yellow]")
+        return
+    
     for i, claim_name in enumerate(claim_names, 1):
         try:
             disclosure = disclosure_mapping[claim_name]
             _, _, value = sdjwt.decode_disclosure(disclosure)
-            console.print(f"  [cyan][{i}][/cyan] {claim_name}: [green]{value}[/green]")
+            req_marker = " [bold yellow]← PFLICHT[/bold yellow]" if claim_name in required_claims else ""
+            console.print(f"  [cyan][{i}][/cyan] {claim_name}: [green]{value}[/green]{req_marker}")
         except:
             console.print(f"  [cyan][{i}][/cyan] {claim_name}: [dim]Fehler[/dim]")
     
     console.print(f"  [cyan][A][/cyan] Alle auswählen")
     
-    selection = Prompt.ask("\nAuswahl", default="A")
+    # Bei geforderten Claims: Default auf Pflicht-Claims setzen
+    if required_claims:
+        required_indices = [str(claim_names.index(c) + 1) for c in required_claims if c in claim_names]
+        default_selection = ",".join(required_indices)
+        console.print(f"\n[yellow]Hinweis: Der Verifier fordert folgende Claims: {', '.join(required_claims)}[/yellow]")
+        console.print("[yellow]Diese werden automatisch eingeschlossen.[/yellow]")
+    else:
+        default_selection = "A"
+    
+    selection = Prompt.ask("\nAuswahl", default=default_selection)
     
     # Selection parsen
     if selection.upper() == "A":
@@ -512,6 +545,14 @@ def present_credential():
         except ValueError:
             console.print("[red]Ungültige Auswahl[/red]")
             return
+    
+    # Sicherstellen, dass geforderte Claims enthalten sind
+    if required_claims:
+        for req_claim in required_claims:
+            req_idx = claim_names.index(req_claim)
+            if req_idx not in selected_indices:
+                selected_indices.append(req_idx)
+                console.print(f"[yellow]![/yellow] Pflicht-Claim '{req_claim}' automatisch hinzugefügt")
     
     # Ausgewählte Disclosures sammeln
     selected_disclosures = []

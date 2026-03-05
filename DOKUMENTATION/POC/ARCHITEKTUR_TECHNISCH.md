@@ -1,7 +1,7 @@
 # SD-JWT VC PoC - Technische Architektur-Dokumentation
 
 > **Zielgruppe:** Entwickler, die das System verstehen und replizieren möchten  
-> **Version:** 6.0  
+> **Version:** 7.0  
 > **Stand:** November 2025
 
 ---
@@ -146,7 +146,7 @@ Zentrale Bibliothek für alle kryptografischen Operationen. **694 Zeilen Code**.
 ### 3.2 Konstanten
 
 ```python
-CLOCK_SKEW_LEEWAY = 60  # Sekunden Toleranz für Zeitprüfungen (v4.0)
+CLOCK_SKEW_LEEWAY = 20  # Sekunden Toleranz für Zeitprüfungen (v7.0)
 ```
 
 ### 3.3 Funktionen - Key Management
@@ -756,7 +756,7 @@ status_list: bytes = b''               # Revocation Status List
 pending_offers: Dict[str, Dict] = {}   # pre_auth_code -> {citizen_code, created_at}
 access_tokens: Dict[str, Dict] = {}    # token -> {citizen_code, expires_at}
 issued_credentials: Dict[str, int] = {} # citizen_code -> status_index
-short_codes: Dict[str, str] = {}       # 4-digit code -> offer_uri (v4.0)
+short_codes: Dict[str, str] = {}       # 6-digit code -> offer_uri (v7.0)
 ```
 
 ### 4.3 Initialisierungs-Funktionen
@@ -883,7 +883,7 @@ app = Flask(__name__)
 # In-Memory Storage
 pending_challenges: Dict[str, Dict] = {}  # nonce -> {created_at, state}
 issuer_keys_cache: Dict[str, bytes] = {}  # issuer_uri -> public_key
-short_codes: Dict[str, str] = {}          # 4-digit code -> nonce (v4.0)
+short_codes: Dict[str, str] = {}          # 6-digit code -> nonce (v7.0)
 TRUST_REGISTRY: Dict[str, Any] = {}       # Vertrauenswürdige Issuers
 ```
 
@@ -1364,7 +1364,7 @@ python cert_manager.py self-sign  # Selbstsignierte Zertifikate
   "ssl": { /* wie issuer */ },
   "challenge_validity_minutes": 5,
   "trust_registry_file": "trusted_registry.json",
-  "clock_skew_seconds": 60,
+  "clock_skew_seconds": 20,
   "inspection_mode": true|false,
   "trusted_issuers": ["https://...", ...],
   "first_run_completed": true|false
@@ -1861,7 +1861,7 @@ python wallet.py
    → Zeigt QR-Code und Short-Code
 
 2. **Wallet:** `receive`
-   → Eingabe: Short-Code (4 Ziffern)
+   → Eingabe: Short-Code (6 Ziffern)
    → Credential wird empfangen und gespeichert
 
 3. **Verifier:** `request`

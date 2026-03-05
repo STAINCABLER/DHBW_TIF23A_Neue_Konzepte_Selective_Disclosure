@@ -77,7 +77,7 @@ DEFAULT_CONFIGS = {
         },
         "challenge_validity_minutes": 5,
         "trust_registry_file": "trusted_registry.json",
-        "clock_skew_seconds": 60,
+        "clock_skew_seconds": 20,
         "inspection_mode": True,
         "trusted_issuers": ["http://sd-issuer.ltm-labs.de:5001", "http://localhost:5001"],
         "first_run_completed": False
@@ -740,29 +740,60 @@ def get_flat_config(component: str) -> Dict[str, Any]:
 # CLI für Testing
 # ============================================================================
 
+def show_help():
+    """Zeigt die Hilfe an."""
+    console.print(Panel(
+        "[bold]Config Manager[/bold]\n\n"
+        "Zentrale Konfigurationsverwaltung für SD-JWT PoC.\n\n"
+        "[bold]Verwendung:[/bold]\n"
+        "  python config_manager.py [cyan]<command>[/cyan] [cyan]<component>[/cyan]\n\n"
+        "[bold]Befehle:[/bold]\n"
+        "  [cyan]show[/cyan]       Aktuelle Konfiguration anzeigen\n"
+        "  [cyan]setup[/cyan]      Konfiguration erstellen/ändern\n"
+        "  [cyan]reset[/cyan]      Konfiguration zurücksetzen\n"
+        "  [cyan]help[/cyan]       Diese Hilfe anzeigen\n\n"
+        "[bold]Komponenten:[/bold]\n"
+        "  [cyan]issuer[/cyan]     Issuer-Konfiguration\n"
+        "  [cyan]verifier[/cyan]   Verifier-Konfiguration\n"
+        "  [cyan]wallet[/cyan]     Wallet-Konfiguration\n\n"
+        "[bold]Beispiele:[/bold]\n"
+        "  python config_manager.py show issuer\n"
+        "  python config_manager.py setup verifier\n"
+        "  python config_manager.py reset wallet",
+        title="⚙️  Hilfe",
+        border_style="blue"
+    ))
+
+
 def main():
     """CLI für Konfigurationsverwaltung."""
     import sys
     
     if len(sys.argv) < 2:
-        console.print("[bold]Config Manager[/bold]")
-        console.print()
-        console.print("Verwendung:")
-        console.print("  python config_manager.py <component> [command]")
-        console.print()
-        console.print("Komponenten: issuer, verifier, wallet")
-        console.print()
-        console.print("Befehle:")
-        console.print("  setup   - Konfiguration erstellen/ändern")
-        console.print("  show    - Aktuelle Konfiguration anzeigen")
-        console.print("  reset   - Konfiguration zurücksetzen")
+        show_help()
         return
     
-    component = sys.argv[1].lower()
-    command = sys.argv[2].lower() if len(sys.argv) > 2 else "show"
+    command = sys.argv[1].lower()
+    
+    if command in ["help", "-h", "--help"]:
+        show_help()
+        return
+    
+    if command not in ["show", "setup", "reset"]:
+        console.print(f"[red]Unbekannter Befehl: {command}[/red]")
+        show_help()
+        return
+    
+    if len(sys.argv) < 3:
+        console.print(f"[red]Komponente fehlt.[/red]")
+        show_help()
+        return
+    
+    component = sys.argv[2].lower()
     
     if component not in ["issuer", "verifier", "wallet"]:
         console.print(f"[red]Unbekannte Komponente: {component}[/red]")
+        show_help()
         return
     
     config_mgr = ComponentConfig(component)
@@ -778,9 +809,6 @@ def main():
     elif command == "reset":
         if Confirm.ask(f"Konfiguration für {component} wirklich löschen?", default=False):
             config_mgr.reset()
-    
-    else:
-        console.print(f"[red]Unbekannter Befehl: {command}[/red]")
 
 
 if __name__ == "__main__":

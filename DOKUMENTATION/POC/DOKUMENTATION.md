@@ -15,6 +15,8 @@
 11. [Version 4.0: Robustheit & Usability](#11-version-40-robustheit--usability)
 12. [Version 5.0: Deep-Trace File-Logging](#12-version-50-deep-trace-file-logging)
 13. [Version 6.0: CLI Certificate Renewal](#13-version-60-cli-certificate-renewal)
+14. [Version 7.0: Usability & Hardening](#14-version-70-usability--hardening)
+15. [Weiterführende Dokumentation](#15-weiterführende-dokumentation)
 
 ---
 
@@ -77,14 +79,27 @@ Dieser Proof of Concept demonstriert eine vollständige Implementierung des SD-J
 POC/
 ├── sd_jwt_utils.py      # Kryptografische Funktionen
 ├── log_manager.py       # Version 3.0: Live-Inspection Logging
+├── logger_config.py     # Version 5.0: Deep-Trace File-Logging
+├── config_manager.py    # Konfigurationsverwaltung mit First-Run Setup
+├── cert_manager.py      # Version 6.0: ACME/Let's Encrypt Zertifikate
 ├── issuer.py            # Issuer Server
 ├── wallet.py            # Wallet Client  
 ├── verifier.py          # Verifier Server
 ├── citizen_db.json      # Simulierte Bürgerdatenbank
-├── wallet_store.json    # Wallet-Speicher (generiert)
 ├── issuer_keys.json     # Issuer-Schlüssel (generiert)
+├── wallet_store.json    # Wallet-Speicher (generiert)
+├── trusted_registry.json# Trust Registry für Verifier
 ├── requirements.txt     # Python-Abhängigkeiten
-└── README.md            # Kurzanleitung
+├── README.md            # Kurzanleitung
+├── ARCHITECTURE.md      # Architektur-Plan
+├── configs/             # Komponenten-Konfigurationen
+│   ├── issuer_config.json
+│   ├── verifier_config.json
+│   └── wallet_config.json
+└── logs/                # Debug-Logdateien (v5.0)
+    ├── issuer_debug.log
+    ├── wallet_debug.log
+    └── verifier_debug.log
 ```
 
 ---
@@ -280,15 +295,16 @@ set_status(list, index, revoked)  # Setzt Status
 
 #### Verifikationsschritte
 1. Präsentation parsen
-2. Issuer-Vertrauenswürdigkeit prüfen
+2. Issuer-Vertrauenswürdigkeit prüfen (Trust Registry v4.0)
 3. Issuer Public Key abrufen
 4. SD-JWT Signatur verifizieren
 5. Disclosure-Hashes validieren
 6. Holder Public Key extrahieren
 7. Nonce-Gültigkeit prüfen
 8. KB-JWT Signatur verifizieren
-9. SD-Hash überprüfen
-10. Revocation-Status prüfen
+9. SD-Hash überprüfen (KB-JWT bindet an SD-JWT)
+10. Zeit-Claims prüfen (mit Clock Skew Toleranz)
+11. Revocation-Status prüfen
 
 #### Terminal-Befehle
 | Befehl | Beschreibung |
@@ -405,8 +421,10 @@ Liefert die Issuer-Metadaten.
 ```json
 {
   "issuer": "https://issuer.example.com",
+  "credential_issuer": "https://issuer.example.com",
   "credential_endpoint": "https://issuer.example.com/credential",
   "token_endpoint": "https://issuer.example.com/token",
+  "status_list_endpoint": "https://issuer.example.com/status",
   "jwks": {
     "keys": [{
       "kty": "OKP",
@@ -697,8 +715,12 @@ certbot certonly --dns-cloudflare \
 
 | Version | Datum | Änderungen |
 |---------|-------|------------|
-| 1.0 | 2025-02-06 | Initiale Implementierung |
-| 3.0 | 2025-02-06 | Live-Inspection Mode (Crypto-Insight, Traffic-Monitor, Verification-Logic) || 4.0 | 2025-02-06 | Trust Registry, Clock Skew Toleranz, Decoy Hashes, Short-Codes, Consent Screen |
+| 1.0 | 2025-11-03 | Initiale Implementierung |
+| 3.0 | 2025-11-05 | Live-Inspection Mode (Crypto-Insight, Traffic-Monitor, Verification-Logic) |
+| 4.0 | 2025-11-06 | Trust Registry, Clock Skew Toleranz, Decoy Hashes, Short-Codes, Consent Screen |
+| 5.0 | 2025-11-07 | Deep-Trace File-Logging (persistente Logdateien) |
+| 6.0 | 2025-11 | CLI Certificate Renewal, cert_manager.py, config_manager.py |
+| 7.0 | 2025-11 | Short-Codes auf 6 Stellen erweitert, Clock Skew auf 20s reduziert, Hilfe beim Start, Server-Ready-Check |
 ---
 
 ## 10. Version 3.0: Live-Inspection Mode
@@ -807,9 +829,9 @@ Version 4.0 fügt Robustheitsfunktionen und verbesserte Usability hinzu:
 | Feature | Beschreibung |
 |---------|--------------|
 | Trust Registry | Verifier lädt vertrauenswürdige Issuer aus JSON-Datei |
-| Clock Skew Toleranz | 60 Sekunden Zeitpuffer bei nbf/exp Validierung |
+| Clock Skew Toleranz | 20 Sekunden Zeitpuffer bei nbf/exp Validierung |
 | Decoy Hashes | Fake-Hashes gegen Credential-Profiling |
-| Short-Codes | 4-stellige Codes statt langer URLs |
+| Short-Codes | 6-stellige Codes statt langer URLs |
 | Consent Screen | Explizite Zustimmung mit Datenübersicht |
 
 ### 11.2 Trust Registry
@@ -834,10 +856,10 @@ Die Datei `trusted_registry.json` simuliert eine PKI/DID-Infrastruktur:
 
 ### 11.3 Clock Skew Toleranz
 
-Verteilte Systeme haben oft unsynchronisierte Uhren. Version 4.0 toleriert ±60 Sekunden:
+Verteilte Systeme haben oft unsynchronisierte Uhren. Version 4.0 toleriert ±20 Sekunden:
 
 ```python
-CLOCK_SKEW_LEEWAY = 60  # Sekunden
+CLOCK_SKEW_LEEWAY = 20  # Sekunden
 
 def validate_time_claims(payload, leeway=CLOCK_SKEW_LEEWAY):
     # nbf: Token gültig wenn now >= nbf - leeway
@@ -859,17 +881,17 @@ _sd Array mit Decoys:  [hash1, decoy, hash2, hash3, decoy] → Anzahl verschleie
 
 ### 11.5 Short-Codes
 
-4-stellige Codes für einfache Eingabe im Terminal statt langer URLs:
+6-stellige Codes für einfache Eingabe im Terminal statt langer URLs:
 
 **Issuer:**
 ```
 Pre-Authorized Code: aB3dE5fG7hI9...
-Short-Code: 4821  ← Einfache Eingabe
+Short-Code: 482193  ← Einfache Eingabe
 ```
 
 **Wallet:**
 ```
-Pre-Authorized Code oder Short-Code (4 Ziffern): 4821
+Pre-Authorized Code oder Short-Code (6 Ziffern): 482193
 → Short-Code erkannt, löse auf...
 ✓ Short-Code aufgelöst
 ```
@@ -1171,7 +1193,71 @@ Die `renew_certificates()` Funktion behandelt folgende Szenarien:
 
 ---
 
-## 14. Weiterführende Dokumentation
+## 14. Version 7.0: Usability & Hardening
+
+### 14.1 Übersicht
+
+Version 7.0 konzentriert sich auf Usability-Verbesserungen und die Härtung bestehender Features:
+
+| Feature | Beschreibung |
+|---------|--------------|
+| Short-Codes erweitert | Von 4-stellig auf 6-stellig (mehr Kollisionsresistenz) |
+| Clock Skew reduziert | Von 60s auf 20s (striktere Validierung) |
+| Hilfe beim Start | Alle Komponenten zeigen automatisch Hilfe-Befehle |
+| Server-Ready-Check | Issuer/Verifier prüfen ob Port erreichbar, bevor CLI startet |
+
+### 14.2 Short-Codes (6-stellig)
+
+Short-Codes wurden von 4 auf 6 Stellen erweitert, um Kollisionen bei höherem Durchsatz zu vermeiden:
+
+```python
+# v7.0: 6-stelliger Short-Code
+short_code = str(secrets.randbelow(1000000)).zfill(6)
+while short_code in short_codes:  # Kollisionen vermeiden
+    short_code = str(secrets.randbelow(1000000)).zfill(6)
+```
+
+### 14.3 Clock Skew Toleranz (20s)
+
+Die Toleranz für Uhren-Abweichungen wurde von 60 auf 20 Sekunden reduziert:
+
+```python
+# sd_jwt_utils.py
+CLOCK_SKEW_LEEWAY = 20  # v7.0: striktere Validierung
+```
+
+Dies ist ein bewusster Trade-off: Die VMs im PoC-Betrieb sollten hinreichend synchron sein, gleichzeitig wird die Sicherheit durch kürzere Toleranz erhöht.
+
+### 14.4 Automatische Hilfe
+
+Alle drei Komponenten zeigen beim Start automatisch die verfügbaren Befehle an:
+
+```python
+# command_loop() in issuer.py, wallet.py, verifier.py
+def command_loop():
+    show_help()  # v7.0: Hilfe automatisch anzeigen
+    while True:
+        ...
+```
+
+### 14.5 Server-Ready-Check
+
+Issuer und Verifier warten nach dem Flask-Thread-Start aktiv darauf, dass der Port erreichbar ist:
+
+```python
+deadline = time.time() + 5.0
+while time.time() < deadline:
+    try:
+        with socket.create_connection((target_host, CONFIG["port"]), timeout=0.5):
+            server_ready = True
+            break
+    except OSError:
+        time.sleep(0.1)
+```
+
+---
+
+## 15. Weiterführende Dokumentation
 
 Für eine vollständige technische Referenz aller Funktionen, Datenformate und API-Spezifikationen siehe:
 
