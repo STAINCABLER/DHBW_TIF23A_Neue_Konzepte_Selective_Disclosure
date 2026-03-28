@@ -8,27 +8,27 @@
     "document_number": "T220001234"
   },
   "5678-CODE": {
-    "given_name": "Erika",
-    "family_name": "Musterfrau",
-    "birthdate": "1985-07-22",
+    "given_name": "Chantal",
+    "family_name": "Ackermann",
+    "birthdate": "2005-02-22",
     "address": "Beispielweg 7, 80331 München",
     "nationality": "DE",
     "document_number": "T220005678"
   },
-  "9999-CODE": {
-    "given_name": "Hans",
-    "family_name": "Schmidt",
+  "ABCD-CODE": {
+    "given_name": "Anna",
+    "family_name": "Müller",
+    "birthdate": "2008-03-24",
+    "address": "Lindenallee 15, 70173 Stuttgart",
+    "nationality": "DE",
+    "document_number": "T220000ABC"
+  },
+  "6767-CODE": {
+    "given_name": "Tim",
+    "family_name": "Jung",
     "birthdate": "2020-11-03",
     "address": "Hauptstraße 1, 50667 Köln",
     "nationality": "DE",
     "document_number": "T220009999"
-  },
-  "ABCD-CODE": {
-    "given_name": "Anna",
-    "family_name": "Müller",
-    "birthdate": "1995-12-24",
-    "address": "Lindenallee 15, 70173 Stuttgart",
-    "nationality": "DE",
-    "document_number": "T220000ABC"
   }
 }
